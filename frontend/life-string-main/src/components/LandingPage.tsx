@@ -145,7 +145,7 @@ const LandingPage = ({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="cursor-pointer transition-opacity hover:opacity-80 focus:outline-none focus-visible:outline-none">
-                    <img src="/lifestring-header-logo.png" alt="LifeString Logo - Find Your House" className="h-32 w-auto object-cover object-[50%_52%] scale-[1.75] overflow-hidden" />
+                    <img src={lifestringLogo} alt="LifeString Logo - Find Your House" className="h-32 w-auto object-cover object-[50%_52%] scale-[1.75] overflow-hidden" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="bg-background border border-border z-50">

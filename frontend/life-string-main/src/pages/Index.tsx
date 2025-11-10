@@ -5,6 +5,7 @@ import AuthPage from "../components/AuthPage";
 import SignIn from "../components/SignIn";
 import ViewProfile from "../components/ViewProfile";
 import { useAuth } from "../hooks/useAuth";
+import lifestringLogo from '@/assets/lifestring-header-logo.png';
 
 // Removed Community interface and franklinCommunity object - no longer needed
 
@@ -141,7 +142,7 @@ function AppContent() {
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="text-center">
             <img
-              src="/lifestring-header-logo.png"
+              src={lifestringLogo}
               alt="Lifestring"
               className="h-16 w-auto mx-auto mb-4 object-contain animate-pulse"
             />

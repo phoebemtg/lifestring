@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, Mail } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
+import lifestringLogo from '@/assets/lifestring-header-logo.png';
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 interface AuthPageProps {
@@ -125,7 +126,7 @@ const AuthPage = ({ onAuthComplete, onBack }: AuthPageProps) => {
           </Button>
           <CardTitle className="text-2xl font-light text-gray-900">
             {isProfileCompletion ? "Complete Your Profile" : (isLogin ? "Welcome Back" : 
-              <img src="/lifestring-header-logo.png" alt="Lifestring" className="h-12 mx-auto object-cover" style={{ transform: 'scale(5)' }} />
+              <img src={lifestringLogo} alt="Lifestring" className="h-12 mx-auto object-cover" style={{ transform: 'scale(5)' }} />
             )}
           </CardTitle>
         </CardHeader>

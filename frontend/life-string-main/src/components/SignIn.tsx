@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, Mail } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
+import lifestringLogo from '@/assets/lifestring-header-logo.png';
 interface SignInProps {
   onSignInComplete: (user: {
     name: string;
@@ -119,7 +120,7 @@ const SignIn = ({
           <Button onClick={onBack} variant="ghost" className="absolute top-4 left-4">
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <img src="/lifestring-header-logo.png" alt="Lifestring" className="h-12 mx-auto object-cover" style={{ transform: 'scale(5)' }} />
+          <img src={lifestringLogo} alt="Lifestring" className="h-12 mx-auto object-cover" style={{ transform: 'scale(5)' }} />
           <div className="text-sm font-light text-gray-600 mt-4">Welcome Back to Lifestring</div>
           
         </CardHeader>
