@@ -6,6 +6,7 @@ import { OvalCarousel } from '@/components/ui/oval-carousel';
 import { Card, CardContent } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
+import lifestringLogo from '@/assets/lifestring-header-logo.png';
 interface LandingPageProps {
   onStartJourney: () => void;
   onSignIn: () => void;
@@ -277,7 +278,7 @@ const LandingPage = ({
         <div className="max-w-5xl mx-auto px-8 lg:px-12 py-16">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="col-span-1 md:col-span-2">
-              <img src="/lovable-uploads/lifestring-header-logo.png" alt="LifeString Logo" className="h-[150px] w-auto object-cover object-[center_75%] mb-4" />
+              <img src={lifestringLogo} alt="LifeString Logo" className="h-[150px] w-auto object-cover object-[center_75%] mb-4" />
             </div>
             
             <div>

@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import CreateJoinModal from './CreateJoinModal';
+import lifestringLogo from '@/assets/lifestring-header-logo.png';
 
 
 interface StringsInterfaceProps {
@@ -769,7 +770,7 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
               {/* Replace "Strings" heading with Lifestring Logo */}
               <div className="mb-6">
                 <img
-                  src="/lovable-uploads/029aeb16-a6cc-4b43-9b32-b93368edb972.png"
+                  src={lifestringLogo}
                   alt="Lifestring"
                   className="h-40 w-auto mx-auto object-contain"
                 />
