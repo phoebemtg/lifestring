@@ -453,7 +453,7 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
             # Get AI response with function calling capability
             response = await openai_service.chat_completion(
                 messages=messages,
-                model="gpt-4o-mini",
+                model="gpt-4o",
                 temperature=0.7,
                 max_tokens=500,
                 tools=tools if tools else None
@@ -491,7 +491,7 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
                 # Get final response with function results
                 final_response = await openai_service.chat_completion(
                     messages=messages,
-                    model="gpt-4o-mini",
+                    model="gpt-4o",
                     temperature=0.7,
                     max_tokens=500
                 )
@@ -553,7 +553,7 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
         # Get AI response with function calling capability
         response = await openai_service.chat_completion(
             messages=messages,
-            model="gpt-4o-mini",
+            model="gpt-4o",
             temperature=0.7,
             max_tokens=500,
             tools=tools if tools else None
@@ -591,7 +591,7 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
             # Get final response with function results
             final_response = await openai_service.chat_completion(
                 messages=messages,
-                model="gpt-4o-mini",
+                model="gpt-4o",
                 temperature=0.7,
                 max_tokens=500
             )
@@ -899,7 +899,7 @@ IMPORTANT: Never mention external platforms like Meetup, Facebook, Instagram, or
         client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": request.message}
@@ -1234,7 +1234,7 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
         response = await openai_service.chat_completion(
             messages=messages,
             tools=tools,
-            model="gpt-4o-mini",
+            model="gpt-4o",
             max_tokens=500,
             temperature=0.7
         )
@@ -1273,7 +1273,7 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
             # Get final response with function results
             final_response = await openai_service.chat_completion(
                 messages=messages,
-                model="gpt-4o-mini",
+                model="gpt-4o",
                 max_tokens=500,
                 temperature=0.7
             )
