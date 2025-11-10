@@ -277,10 +277,7 @@ const LandingPage = ({
         <div className="max-w-5xl mx-auto px-8 lg:px-12 py-16">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="col-span-1 md:col-span-2">
-              <img src="/lifestring-header-logo.png" alt="LifeString Logo" className="h-[150px] w-auto object-cover object-[center_75%] mb-4" />
-              <p className="text-muted-foreground leading-relaxed">
-                LifeString connects people through AI, as the world becomes more and more "connected" but less and less connected, we believe there needs to be a place where our AI can find you friends, groups and things to do so you can live a more human and connected life.
-              </p>
+              <img src="/lovable-uploads/lifestring-header-logo.png" alt="LifeString Logo" className="h-[150px] w-auto object-cover object-[center_75%] mb-4" />
             </div>
             
             <div>

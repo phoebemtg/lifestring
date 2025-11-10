@@ -769,7 +769,7 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
               {/* Replace "Strings" heading with Lifestring Logo */}
               <div className="mb-6">
                 <img
-                  src="/lifestring-header-logo.png"
+                  src="/lovable-uploads/lifestring-header-logo.png"
                   alt="Lifestring"
                   className="h-40 w-auto mx-auto object-contain"
                 />
