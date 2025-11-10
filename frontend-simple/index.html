@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lifestring AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 800px;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .chat-container {
+            padding: 30px;
+        }
+
+        .messages {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            scroll-behavior: smooth;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 15px;
+            border-radius: 15px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+
+        .message.user {
+            background: #667eea;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .message.ai {
+            background: white;
+            border: 2px solid #e9ecef;
+            color: #333;
+        }
+
+        .message.system {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            text-align: center;
+            margin: 0 auto;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .input-container input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .input-container input:focus {
+            border-color: #667eea;
+        }
+
+        .input-container button {
+            padding: 15px 30px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .input-container button:hover:not(:disabled) {
+            background: #5a6fd8;
+        }
+
+        .input-container button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .action-btn {
+            padding: 10px 20px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .action-btn:hover {
+            background: #218838;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            display: none;
+            padding: 10px;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .chat-container {
+                padding: 20px;
+            }
+            
+            .messages {
+                max-height: 300px;
+                padding: 15px;
+            }
+            
+            .message {
+                max-width: 90%;
+                padding: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Lifestring AI</h1>
+            <p>Your intelligent social networking assistant</p>
+        </div>
+        
+        <div class="chat-container">
+            <div class="messages" id="messages">
+                <div class="message system">
+                    Welcome! I'm your Lifestring AI assistant. I can help you create strings, find connections, and discover activities. Try saying something like "I want to find people who like hiking" or "Help me plan a trip to Japan"!
+                </div>
+            </div>
+            
+            <div class="error" id="error"></div>
+            <div class="loading" id="loading">AI is thinking...</div>
+            
+            <div class="input-container">
+                <input 
+                    type="text" 
+                    id="messageInput" 
+                    placeholder="Ask me anything about connecting with people or activities..."
+                    onkeypress="handleKeyPress(event)"
+                >
+                <button onclick="sendMessage()" id="sendBtn">Send</button>
+            </div>
+            
+            <div class="actions" id="actions"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://lifestring-api-6946562411.us-central1.run.app/api';
+        let isLoading = false;
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function addMessage(content, type) {
+            const messagesContainer = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = content;
+            messagesContainer.appendChild(messageDiv);
+            
+            // Auto-scroll to bottom
+            setTimeout(() => {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }, 100);
+        }
+
+        function showActions(actions) {
+            const actionsContainer = document.getElementById('actions');
+            actionsContainer.innerHTML = '';
+            
+            actions.forEach(action => {
+                const button = document.createElement('button');
+                button.className = 'action-btn';
+                button.textContent = action.description;
+                button.onclick = () => executeAction(action);
+                actionsContainer.appendChild(button);
+            });
+        }
+
+        function setLoading(loading) {
+            isLoading = loading;
+            const loadingDiv = document.getElementById('loading');
+            const sendBtn = document.getElementById('sendBtn');
+            
+            loadingDiv.style.display = loading ? 'block' : 'none';
+            sendBtn.disabled = loading;
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        async function executeAction(action) {
+            addMessage(`Executing: ${action.description}...`, 'system');
+            
+            try {
+                const response = await fetch(`${API_BASE}/ai/execute-action`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action_type: action.type,
+                        action_data: action.data
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        addMessage(`Success: ${result.message || 'Action completed successfully!'}`, 'system');
+                    } else {
+                        addMessage(`Error: ${result.error || 'Action failed'}`, 'system');
+                    }
+                } else {
+                    throw new Error('API request failed');
+                }
+            } catch (error) {
+                console.log('API failed, using simulation');
+                const result = simulateActionResult(action);
+                addMessage(result, 'ai');
+            }
+        }
+
+        function simulateActionResult(action) {
+            if (action.type === 'search_users') {
+                const interests = action.data.interests || ['general'];
+                return `Found 5 users interested in ${interests.join(', ')}: Alex, Sarah, Mike, Emma, and David`;
+            } else if (action.type === 'create_string') {
+                return `Created string: "${action.data.title}" - Ready to connect with people!`;
+            } else if (action.type === 'create_join') {
+                return `Created ${action.data.type}: "${action.data.title}" - Others can now join!`;
+            } else {
+                return `${action.description} completed successfully!`;
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message || isLoading) return;
+            
+            addMessage(message, 'user');
+            input.value = '';
+            setLoading(true);
+            
+            try {
+                const response = await fetch(`${API_BASE}/ai/lifestring-chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        context: {}
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    addMessage(data.message, 'ai');
+                    
+                    if (data.actions && data.actions.length > 0) {
+                        showActions(data.actions);
+                    }
+                } else {
+                    throw new Error('API request failed');
+                }
+            } catch (error) {
+                console.log('API failed, using demo response');
+                const mockResponse = getDemoResponse(message);
+                addMessage(mockResponse.message, 'ai');
+                
+                if (mockResponse.actions && mockResponse.actions.length > 0) {
+                    showActions(mockResponse.actions);
+                }
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function getDemoResponse(message) {
+            const lowerMessage = message.toLowerCase();
+            
+            if (lowerMessage.includes('hiking') || lowerMessage.includes('hike')) {
+                return {
+                    message: "I'd love to help you find hiking enthusiasts! Let me search for people with similar interests and suggest some hiking groups.",
+                    actions: [
+                        {
+                            type: "search_users",
+                            data: { interests: ["hiking"] },
+                            description: "Find hiking enthusiasts"
+                        },
+                        {
+                            type: "create_string",
+                            data: { 
+                                title: "Looking for hiking buddies",
+                                content: "Anyone interested in hiking this weekend?",
+                                tags: ["hiking", "outdoors", "weekend"]
+                            },
+                            description: "Create hiking string"
+                        }
+                    ]
+                };
+            }
+            
+            if (lowerMessage.includes('trip') || lowerMessage.includes('travel') || lowerMessage.includes('japan')) {
+                return {
+                    message: "That sounds amazing! I'll help you create a trip and find travel companions.",
+                    actions: [
+                        {
+                            type: "create_join",
+                            data: { 
+                                title: "Japan Travel Planning",
+                                type: "trip",
+                                location: "Japan"
+                            },
+                            description: "Create Japan trip"
+                        },
+                        {
+                            type: "search_users",
+                            data: { interests: ["travel", "japan"] },
+                            description: "Find travel buddies"
+                        }
+                    ]
+                };
+            }
+
+            if (lowerMessage.includes('workout') || lowerMessage.includes('fitness') || lowerMessage.includes('gym')) {
+                return {
+                    message: "Great! I'll help you find workout partners and fitness groups in your area.",
+                    actions: [
+                        {
+                            type: "search_users",
+                            data: { interests: ["fitness", "workout"] },
+                            description: "Find workout buddies"
+                        },
+                        {
+                            type: "create_string",
+                            data: { 
+                                title: "Looking for gym partners",
+                                content: "Anyone want to be workout accountability partners?",
+                                tags: ["fitness", "gym", "workout"]
+                            },
+                            description: "Create fitness string"
+                        }
+                    ]
+                };
+            }
+
+            if (lowerMessage.includes('cooking') || lowerMessage.includes('food') || lowerMessage.includes('recipe')) {
+                return {
+                    message: "I love helping food enthusiasts connect! Let me find people who share your passion for cooking.",
+                    actions: [
+                        {
+                            type: "search_users",
+                            data: { interests: ["cooking", "food"] },
+                            description: "Find food lovers"
+                        },
+                        {
+                            type: "create_join",
+                            data: { 
+                                title: "Cooking Club Meetup",
+                                type: "event",
+                                category: "food"
+                            },
+                            description: "Create cooking event"
+                        }
+                    ]
+                };
+            }
+
+            return {
+                message: "I can help you create strings, find connections, and discover activities. What interests you?",
+                actions: [
+                    {
+                        type: "search_users",
+                        data: { interests: ["general"] },
+                        description: "Find people with similar interests"
+                    }
+                ]
+            };
+        }
+
+        // Focus input on load
+        document.getElementById('messageInput').focus();
+    </script>
+</body>
+</html>

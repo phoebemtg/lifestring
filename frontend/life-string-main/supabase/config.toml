@@ -1,0 +1,10 @@
+project_id = "bkaiuwzwepdxdwhznwbt"
+
+[functions.get-printify-products]
+verify_jwt = false
+
+[functions.create-printify-order]
+verify_jwt = false
+
+[functions.get-printify-shops]
+verify_jwt = false
