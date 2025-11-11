@@ -16,7 +16,7 @@ PyJWT==2.8.0
 passlib[bcrypt]==1.7.4
 
 # AI/ML
-openai==1.10.0
+openai==1.57.0
 numpy==1.26.3
 
 # Background Tasks
