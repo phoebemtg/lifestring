@@ -406,13 +406,122 @@ const EditableProfile = ({ onBack, userName, selectedOrbColor = '#4169E1' }: Edi
     }
   };
 
+  // Colorful orbs background function (same as homepage)
+  const getOrbsBackground = () => {
+    // Improved golden spiral layout with better structure
+    const orbConfigurations = [
+    // Large center orb
+    {
+      color: "#FFD700",
+      size: 250,
+      opacity: 0.12,
+      blur: 50,
+      left: 45,
+      top: 40,
+      animation: 'cloud-float-1',
+      delay: 0,
+      duration: 30
+    },
+    // Golden ratio spiral - moving outward
+    {
+      color: "#FF69B4",
+      size: 180,
+      opacity: 0.08,
+      blur: 60,
+      left: 25,
+      top: 25,
+      animation: 'cloud-float-2',
+      delay: 5,
+      duration: 25
+    }, {
+      color: "#4169E1",
+      size: 200,
+      opacity: 0.10,
+      blur: 55,
+      left: 65,
+      top: 20,
+      animation: 'cloud-float-3',
+      delay: 10,
+      duration: 35
+    }, {
+      color: "#00CED1",
+      size: 160,
+      opacity: 0.09,
+      blur: 65,
+      left: 75,
+      top: 55,
+      animation: 'cloud-float-4',
+      delay: 15,
+      duration: 28
+    }, {
+      color: "#32CD32",
+      size: 140,
+      opacity: 0.07,
+      blur: 70,
+      left: 55,
+      top: 70,
+      animation: 'cloud-float-5',
+      delay: 20,
+      duration: 32
+    }, {
+      color: "#9370DB",
+      size: 170,
+      opacity: 0.08,
+      blur: 58,
+      left: 15,
+      top: 60,
+      animation: 'cloud-float-1',
+      delay: 25,
+      duration: 27
+    },
+    // Accent orbs for depth
+    {
+      color: "#87CEEB",
+      size: 120,
+      opacity: 0.06,
+      blur: 75,
+      left: 80,
+      top: 30,
+      animation: 'cloud-float-2',
+      delay: 12,
+      duration: 40
+    }, {
+      color: "#DDA0DD",
+      size: 110,
+      opacity: 0.05,
+      blur: 80,
+      left: 10,
+      top: 15,
+      animation: 'cloud-float-3',
+      delay: 18,
+      duration: 22
+    }];
+    const cloudOrbs = orbConfigurations.map((config, index) => <div key={index} className={`absolute rounded-full animate-${config.animation} will-change-transform transform-gpu`} style={{
+      width: `${config.size}px`,
+      height: `${config.size}px`,
+      backgroundColor: config.color,
+      opacity: config.opacity,
+      filter: `blur(${config.blur}px)`,
+      left: `${config.left}%`,
+      top: `${config.top}%`,
+      animationDelay: `${config.delay}s`,
+      animationDuration: `${config.duration}s`,
+      backfaceVisibility: 'hidden'
+    }} />);
+    return <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {cloudOrbs}
+      </div>;
+  };
+
   // Simple blended background like other pages
   const backgroundStyle = selectedOrbColor === 'CLEAN' ? '#ffffff' : 'linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%)';
 
   // Questions moved to dedicated ProfileQuestions.tsx component
   return (
-    <div className="min-h-screen" style={{ background: backgroundStyle }}>
-      <nav className="bg-white/80 backdrop-blur-sm border-b border-gray-200 p-6">
+    <div className="min-h-screen relative" style={{ background: backgroundStyle }}>
+      {/* Add the colorful orbs background */}
+      {getOrbsBackground()}
+      <nav className="bg-white/80 backdrop-blur-sm border-b border-gray-200 p-6 relative z-10">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <Button
             onClick={onBack}
@@ -437,7 +546,7 @@ const EditableProfile = ({ onBack, userName, selectedOrbColor = '#4169E1' }: Edi
         </div>
       </nav>
 
-      <div className="max-w-4xl mx-auto p-6">
+      <div className="max-w-4xl mx-auto p-6 relative z-10">
         <div className="space-y-8">
           {/* Profile Header */}
           <Card>
