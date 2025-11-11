@@ -85,7 +85,10 @@ class OpenAIService:
         tokens = response.usage.total_tokens
 
         # Calculate cost based on model
-        if model == "gpt-4o":
+        if model == "gpt-5-chat-latest":
+            # GPT-5 pricing: Estimated higher than GPT-4o, ~$10.00/1M tokens average
+            cost = (tokens / 1_000_000) * 10.0
+        elif model == "gpt-4o":
             # GPT-4o pricing: Input: $2.50/1M, Output: $10.00/1M, Average: ~$6.25/1M
             cost = (tokens / 1_000_000) * 6.25
         elif model == "gpt-4o-mini":
