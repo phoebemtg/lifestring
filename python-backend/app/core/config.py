@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_ORG_ID: str = ""
     EMBED_MODEL: str = "text-embedding-3-small"
-    CHAT_MODEL: str = "gpt-5"
+    CHAT_MODEL: str = "o1-preview"
 
     # AI Bot
     AI_BOT_USER_ID: str = "00000000-0000-0000-0000-000000000000"
