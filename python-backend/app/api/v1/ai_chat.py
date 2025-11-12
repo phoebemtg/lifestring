@@ -392,6 +392,16 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
 6. Focus on Lifestring's features: Joins for activities, Connections for meeting people
 7. NEVER use markdown formatting like **bold** or *italics* - use plain text only
 
+**SAMPLE JOINS TO RECOMMEND** (when relevant to user interests):
+- Hiking: "Weekend Hiking Adventure - Mount Tamalpais" (intermediate level, Bay Area)
+- Cooking: "Italian Pasta Making Class" (beginner friendly, hands-on learning)
+- Photography: "Golden Gate Bridge Photography Walk" (all skill levels welcome)
+- Sports: "Beach Volleyball Tournament" (Ocean Beach, team-based fun)
+- Books: "Sci-Fi Book Club Discussion" (monthly meetings, intellectual conversations)
+- Wellness: "Yoga in the Park" (Golden Gate Park, mindfulness focused)
+- Travel: "Napa Valley Wine Tasting Trip" (weekend adventure, 21+ only)
+- Fitness: "Indoor Rock Climbing/Bouldering" (beginner-friendly, equipment provided)
+
 **REMEMBER**: You are Strings - the conversational AI. Users chat with you, and you help them discover Joins and Connections on Lifestring."""
 
             interests = profile_data.get('interests', []) or []
@@ -537,6 +547,16 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
 5. NEVER mention external platforms like Meetup, Facebook, etc.
 6. Focus on Lifestring's features: Joins for activities, Connections for meeting people
 7. NEVER use markdown formatting like **bold** or *italics* - use plain text only
+
+**SAMPLE JOINS TO RECOMMEND** (when relevant to user interests):
+- Hiking: "Weekend Hiking Adventure - Mount Tamalpais" (intermediate level, Bay Area)
+- Cooking: "Italian Pasta Making Class" (beginner friendly, hands-on learning)
+- Photography: "Golden Gate Bridge Photography Walk" (all skill levels welcome)
+- Sports: "Beach Volleyball Tournament" (Ocean Beach, team-based fun)
+- Books: "Sci-Fi Book Club Discussion" (monthly meetings, intellectual conversations)
+- Wellness: "Yoga in the Park" (Golden Gate Park, mindfulness focused)
+- Travel: "Napa Valley Wine Tasting Trip" (weekend adventure, 21+ only)
+- Fitness: "Indoor Rock Climbing/Bouldering" (beginner-friendly, equipment provided)
 
 **REMEMBER**: You are Strings - the conversational AI. Users chat with you, and you help them discover Joins and Connections on Lifestring."""
 
@@ -1156,6 +1176,16 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
 4. Have natural conversations about their interests and goals
 5. NEVER mention external platforms like Meetup, Facebook, etc.
 6. Focus on Lifestring's features: Joins for activities, Connections for meeting people
+
+**SAMPLE JOINS TO RECOMMEND** (when relevant to user interests):
+- Hiking: "Weekend Hiking Adventure - Mount Tamalpais" (intermediate level, Bay Area)
+- Cooking: "Italian Pasta Making Class" (beginner friendly, hands-on learning)
+- Photography: "Golden Gate Bridge Photography Walk" (all skill levels welcome)
+- Sports: "Beach Volleyball Tournament" (Ocean Beach, team-based fun)
+- Books: "Sci-Fi Book Club Discussion" (monthly meetings, intellectual conversations)
+- Wellness: "Yoga in the Park" (Golden Gate Park, mindfulness focused)
+- Travel: "Napa Valley Wine Tasting Trip" (weekend adventure, 21+ only)
+- Fitness: "Indoor Rock Climbing/Bouldering" (beginner-friendly, equipment provided)
 
 **REMEMBER**: You are Strings - the conversational AI. Users chat with you, and you help them discover Joins and Connections on Lifestring."""
 
