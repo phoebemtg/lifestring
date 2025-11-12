@@ -1,5 +1,7 @@
 // Python Backend API Client
-const API_BASE = `${import.meta.env.VITE_BACKEND_URL}/api`;
+const API_BASE = import.meta.env.VITE_BACKEND_URL
+  ? `${import.meta.env.VITE_BACKEND_URL}/api`
+  : 'https://lifestring-api-6946562411.us-central1.run.app/api';
 
 interface ApiResponse<T> {
   data?: T;
