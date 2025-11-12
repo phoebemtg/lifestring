@@ -682,6 +682,7 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
         console.log('🎯 userProfile?.name value:', userProfile?.name);
         console.log('🎯 FINAL PROFILE DATA NAME:', profileData.name);
         console.log('🎯 FINAL PROFILE DATA CONTACT_INFO.NAME:', profileData.contact_info.name);
+        console.log('🚀 GPT-5 Backend URL:', import.meta.env.VITE_BACKEND_URL);
 
         const fallbackResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/ai/lifestring-chat-public`, {
           method: 'POST',
