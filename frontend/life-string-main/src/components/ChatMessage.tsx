@@ -1,5 +1,6 @@
 import React from 'react';
 import JoinCard from './JoinCard';
+import GroupChatCard from './GroupChatCard';
 
 interface JoinData {
   id: string;
@@ -21,20 +22,36 @@ interface JoinData {
   };
 }
 
+interface GroupChatData {
+  id: string;
+  name: string;
+  description?: string;
+  member_count: number;
+  max_members?: number;
+  tags?: string[];
+  is_joined?: boolean;
+  match_score?: number;
+  created_at: string;
+}
+
 interface ChatMessageProps {
   type: 'user' | 'ai';
   content: string;
   joins?: JoinData[];
+  groupChats?: GroupChatData[];
   selectedOrbColor?: string;
   onJoinActivity?: (joinId: string) => void;
+  onJoinGroupChat?: (chatId: string) => void;
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ 
-  type, 
-  content, 
-  joins = [], 
+const ChatMessage: React.FC<ChatMessageProps> = ({
+  type,
+  content,
+  joins = [],
+  groupChats = [],
   selectedOrbColor,
-  onJoinActivity 
+  onJoinActivity,
+  onJoinGroupChat
 }) => {
   return (
     <div className={`flex ${type === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -61,6 +78,21 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                 join={join}
                 compact={true}
                 onViewDetails={onJoinActivity}
+                className="mb-2"
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Group chat cards */}
+        {groupChats && groupChats.length > 0 && (
+          <div className="space-y-2 mt-2">
+            {groupChats.map((chat) => (
+              <GroupChatCard
+                key={chat.id}
+                groupChat={chat}
+                compact={true}
+                onJoinChat={onJoinGroupChat}
                 className="mb-2"
               />
             ))}

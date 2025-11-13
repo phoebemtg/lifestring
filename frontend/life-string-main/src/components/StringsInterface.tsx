@@ -739,7 +739,9 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
           aiResponse = data.message;
           let joins = data.joins || [];
 
-          // TEMPORARY: Add mock joins for testing until backend is deployed
+          // TEMPORARY: Add mock joins and group chats for testing until backend is deployed
+          let groupChats: GroupChatData[] = [];
+
           if (joins.length === 0 && (userMessage.toLowerCase().includes('climbing') ||
                                      userMessage.toLowerCase().includes('hiking') ||
                                      userMessage.toLowerCase().includes('cooking') ||
@@ -795,6 +797,35 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
                        'alex.kim@example.com'
               }
             }];
+
+            // Add relevant group chat recommendations
+            groupChats = [{
+              id: 'mock_group_001',
+              name: userMessage.toLowerCase().includes('climbing') ? 'Bay Area Climbers' :
+                    userMessage.toLowerCase().includes('hiking') ? 'SF Hiking Enthusiasts' :
+                    userMessage.toLowerCase().includes('cooking') ? 'Foodie Friends SF' :
+                    userMessage.toLowerCase().includes('volleyball') ? 'Beach Volleyball Squad' :
+                    'Photography Lovers',
+              description: userMessage.toLowerCase().includes('climbing') ? 'Connect with fellow climbers, share routes, and organize climbing sessions around the Bay Area.' :
+                          userMessage.toLowerCase().includes('hiking') ? 'Share trail recommendations, organize group hikes, and explore the beautiful nature around San Francisco.' :
+                          userMessage.toLowerCase().includes('cooking') ? 'Share recipes, cooking tips, and organize potluck dinners with fellow food enthusiasts.' :
+                          userMessage.toLowerCase().includes('volleyball') ? 'Coordinate beach volleyball games, share tips, and build a community of players.' :
+                          'Share photography tips, organize photo walks, and showcase your best shots with fellow photographers.',
+              member_count: userMessage.toLowerCase().includes('climbing') ? 127 :
+                           userMessage.toLowerCase().includes('hiking') ? 89 :
+                           userMessage.toLowerCase().includes('cooking') ? 156 :
+                           userMessage.toLowerCase().includes('volleyball') ? 73 :
+                           94,
+              max_members: 200,
+              tags: userMessage.toLowerCase().includes('climbing') ? ['climbing', 'bouldering', 'bay area', 'fitness'] :
+                    userMessage.toLowerCase().includes('hiking') ? ['hiking', 'trails', 'nature', 'outdoor'] :
+                    userMessage.toLowerCase().includes('cooking') ? ['cooking', 'recipes', 'food', 'potluck'] :
+                    userMessage.toLowerCase().includes('volleyball') ? ['volleyball', 'beach', 'sports', 'team'] :
+                    ['photography', 'art', 'creative', 'photo walks'],
+              is_joined: false,
+              match_score: 88,
+              created_at: new Date().toISOString()
+            }];
           }
 
           console.log('✅ Public API response received:', aiResponse);
@@ -808,7 +839,7 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
             // Add the AI message when we start streaming
             let actualAiMessageIndex: number;
             setChatMessages(prev => {
-              const newMessages = [...prev, { type: 'ai' as const, content: '', timestamp: new Date(), joins }];
+              const newMessages = [...prev, { type: 'ai' as const, content: '', timestamp: new Date(), joins, groupChats }];
               actualAiMessageIndex = newMessages.length - 1; // The AI message is the last one
               return newMessages;
             });
@@ -824,7 +855,8 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
                     type: 'ai',
                     content: currentText,
                     timestamp: new Date(),
-                    joins
+                    joins,
+                    groupChats
                   };
                 }
                 return newMessages;
@@ -907,6 +939,21 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
       recipientName: join.user.name,
       joinContext: join.title
     });
+  };
+
+  // Handler for joining group chats
+  const handleJoinGroupChat = (chatId: string) => {
+    toast({
+      title: "Joining Group Chat",
+      description: "Opening group chat interface...",
+    });
+
+    // TODO: Implement actual group chat functionality
+    // This could be done by:
+    // 1. Opening a group chat modal/sidebar
+    // 2. Navigating to a dedicated group chat page
+    // 3. Integrating with a real-time messaging system
+    console.log('Join group chat:', chatId);
   };
 
   return (
@@ -1052,8 +1099,10 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
                     type={message.type}
                     content={message.content}
                     joins={message.joins}
+                    groupChats={message.groupChats}
                     selectedOrbColor={selectedOrbColor}
                     onJoinActivity={handleViewJoinDetails}
+                    onJoinGroupChat={handleJoinGroupChat}
                   />
                 ))}
 
