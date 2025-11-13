@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import CreateJoinModal from './CreateJoinModal';
 import ChatMessage from './ChatMessage';
 import JoinPreviewModal from './JoinPreviewModal';
+import MessagingSystem from './MessagingSystem';
 import lifestringLogo from '@/assets/lifestring-header-logo.png';
 
 
@@ -94,6 +95,8 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
   const [selectedJoin, setSelectedJoin] = useState<JoinData | null>(null);
   const [isJoinPreviewOpen, setIsJoinPreviewOpen] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isMessagingOpen, setIsMessagingOpen] = useState(false);
+  const [messagingRecipient, setMessagingRecipient] = useState<{id: string, name: string} | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -922,22 +925,16 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
       return;
     }
 
-    // Navigate to messaging interface with the creator
-    // For now, we'll show a toast and set up the messaging state
+    // Open messaging interface with the creator
+    setMessagingRecipient({
+      id: join.user.id,
+      name: join.user.name || 'Unknown User'
+    });
+    setIsMessagingOpen(true);
+
     toast({
       title: "Opening Message",
       description: `Starting conversation with ${join.user.name} about "${join.title}"`,
-    });
-
-    // TODO: Implement actual navigation to messaging interface
-    // This could be done by:
-    // 1. Setting a messaging mode state
-    // 2. Using React Router to navigate to /messages/:userId
-    // 3. Opening a messaging modal/sidebar
-    console.log('Navigate to message:', {
-      recipientId: join.user.id,
-      recipientName: join.user.name,
-      joinContext: join.title
     });
   };
 
@@ -955,6 +952,23 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
     // 3. Integrating with a real-time messaging system
     console.log('Join group chat:', chatId);
   };
+
+  // Handler for closing messaging interface
+  const handleCloseMessaging = () => {
+    setIsMessagingOpen(false);
+    setMessagingRecipient(null);
+  };
+
+  // If messaging is open, show messaging interface instead of main chat
+  if (isMessagingOpen && messagingRecipient) {
+    return (
+      <MessagingSystem
+        recipientId={messagingRecipient.id}
+        recipientName={messagingRecipient.name}
+        onBack={handleCloseMessaging}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
