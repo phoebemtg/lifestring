@@ -26,13 +26,15 @@ interface JoinCardProps {
   onJoin?: (joinId: string) => void;
   onViewDetails?: (joinId: string) => void;
   className?: string;
+  compact?: boolean; // New prop for compact chat display
 }
 
-const JoinCard: React.FC<JoinCardProps> = ({ 
-  join, 
-  onJoin, 
-  onViewDetails, 
-  className = "" 
+const JoinCard: React.FC<JoinCardProps> = ({
+  join,
+  onJoin,
+  onViewDetails,
+  className = "",
+  compact = false
 }) => {
   const getDifficultyColor = (difficulty?: string) => {
     switch (difficulty) {
@@ -74,10 +76,94 @@ const JoinCard: React.FC<JoinCardProps> = ({
   };
 
   const category = getActivityCategory(join.tags);
-  const participantsText = join.max_participants 
+  const participantsText = join.max_participants
     ? `${join.current_participants || 1}/${join.max_participants}`
     : `${join.current_participants || 1} joined`;
 
+  // Compact version for chat messages
+  if (compact) {
+    return (
+      <Card className={`w-full max-w-sm hover:shadow-md transition-shadow duration-200 cursor-pointer ${className}`}>
+        <CardContent className="p-3">
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex-1">
+              {category && (
+                <Badge className={`${category.color} border-0 text-xs font-medium mb-1`}>
+                  {category.name}
+                </Badge>
+              )}
+              <h4 className="font-semibold text-sm text-gray-900 leading-tight">
+                {join.title}
+              </h4>
+            </div>
+            {join.match_score && join.match_score > 70 && (
+              <Star className="h-3 w-3 text-yellow-500 ml-2 flex-shrink-0" />
+            )}
+          </div>
+
+          {join.description && (
+            <p className="text-gray-600 text-xs mb-2 line-clamp-2">
+              {join.description}
+            </p>
+          )}
+
+          <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+            <div className="flex items-center gap-2">
+              {join.location && (
+                <div className="flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  <span className="truncate max-w-[80px]">{join.location}</span>
+                </div>
+              )}
+              {join.duration && (
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  <span>{join.duration}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <Users className="h-3 w-3" />
+              <span>{participantsText}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1">
+              {join.difficulty && (
+                <Badge className={`${getDifficultyColor(join.difficulty)} border-0 text-xs`}>
+                  {join.difficulty}
+                </Badge>
+              )}
+              {join.tags && join.tags.length > 0 && (
+                <Badge variant="outline" className="text-xs bg-gray-50 px-1 py-0">
+                  {join.tags[0]}
+                </Badge>
+              )}
+            </div>
+
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                onJoin?.(join.id);
+              }}
+              size="sm"
+              className={`text-xs px-2 py-1 h-6 ${
+                join.is_joined
+                  ? "bg-green-600 hover:bg-green-700 text-white"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
+              }`}
+              disabled={join.is_joined}
+            >
+              {join.is_joined ? "Joined" : "Join"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Full version for regular display
   return (
     <Card 
       className={`border-0 bg-white hover:shadow-md transition-all duration-200 cursor-pointer group ${className}`}

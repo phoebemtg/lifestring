@@ -29,6 +29,102 @@ router = APIRouter()
 security = HTTPBearer()
 
 
+def extract_joins_from_response(response_text: str, user_message: str) -> List[Dict[str, Any]]:
+    """Extract join recommendations from AI response and return structured data."""
+    joins = []
+
+    # Check if the response mentions specific activities that could be joins
+    message_lower = user_message.lower()
+    response_lower = response_text.lower()
+
+    # Sample joins data based on activity type
+    sample_joins = {
+        'hiking': {
+            'id': 'join_hiking_001',
+            'title': 'Weekend Hiking Adventure - Mount Tamalpais',
+            'description': 'Join us for a scenic hike through Mount Tamalpais State Park. Perfect for intermediate hikers looking to explore Bay Area trails.',
+            'location': 'Mount Tamalpais State Park, CA',
+            'duration': '4 hours',
+            'max_participants': 12,
+            'current_participants': 3,
+            'difficulty': 'intermediate',
+            'tags': ['hiking', 'outdoor', 'nature', 'bay area', 'weekend'],
+            'match_score': 92,
+            'created_at': '2024-01-15T10:00:00Z'
+        },
+        'cooking': {
+            'id': 'join_cooking_001',
+            'title': 'Italian Pasta Making Class',
+            'description': 'Learn to make authentic Italian pasta from scratch! Hands-on cooking class suitable for all skill levels.',
+            'location': 'Culinary Studio, San Francisco',
+            'duration': '3 hours',
+            'max_participants': 8,
+            'current_participants': 2,
+            'difficulty': 'beginner',
+            'tags': ['cooking', 'italian', 'pasta', 'culinary', 'hands-on'],
+            'match_score': 88,
+            'created_at': '2024-01-15T14:00:00Z'
+        },
+        'photography': {
+            'id': 'join_photo_001',
+            'title': 'Golden Gate Bridge Photography Walk',
+            'description': 'Capture stunning views of the Golden Gate Bridge from the best vantage points. Bring your camera and creativity!',
+            'location': 'Crissy Field, San Francisco',
+            'duration': '2.5 hours',
+            'max_participants': 10,
+            'current_participants': 4,
+            'difficulty': 'beginner',
+            'tags': ['photography', 'golden gate', 'scenic', 'creative', 'walk'],
+            'match_score': 85,
+            'created_at': '2024-01-15T16:00:00Z'
+        },
+        'volleyball': {
+            'id': 'join_volleyball_001',
+            'title': 'Beach Volleyball Tournament',
+            'description': 'Join our friendly beach volleyball tournament at Ocean Beach. Teams will be formed on-site, all skill levels welcome!',
+            'location': 'Ocean Beach, San Francisco',
+            'duration': '3 hours',
+            'max_participants': 16,
+            'current_participants': 8,
+            'difficulty': 'intermediate',
+            'tags': ['volleyball', 'beach', 'tournament', 'team sport', 'ocean beach'],
+            'match_score': 90,
+            'created_at': '2024-01-15T11:00:00Z'
+        },
+        'climbing': {
+            'id': 'join_climbing_001',
+            'title': 'Indoor Rock Climbing/Bouldering',
+            'description': 'Try indoor rock climbing and bouldering! Equipment provided, perfect for beginners and experienced climbers alike.',
+            'location': 'Mission Cliffs, San Francisco',
+            'duration': '2 hours',
+            'max_participants': 6,
+            'current_participants': 2,
+            'difficulty': 'beginner',
+            'tags': ['climbing', 'bouldering', 'indoor', 'fitness', 'beginner-friendly'],
+            'match_score': 94,
+            'created_at': '2024-01-15T18:00:00Z'
+        }
+    }
+
+    # Check for activity keywords and add relevant joins
+    if any(word in message_lower for word in ['hiking', 'hike', 'trail', 'mountain']):
+        joins.append(sample_joins['hiking'])
+
+    if any(word in message_lower for word in ['cooking', 'cook', 'pasta', 'italian', 'culinary']):
+        joins.append(sample_joins['cooking'])
+
+    if any(word in message_lower for word in ['photography', 'photo', 'camera', 'picture']):
+        joins.append(sample_joins['photography'])
+
+    if any(word in message_lower for word in ['volleyball', 'beach', 'sport', 'tournament']):
+        joins.append(sample_joins['volleyball'])
+
+    if any(word in message_lower for word in ['climbing', 'climb', 'rock', 'boulder']):
+        joins.append(sample_joins['climbing'])
+
+    return joins
+
+
 class ChatRequest(BaseModel):
     """Request schema for AI chat."""
     message: str
@@ -68,6 +164,7 @@ class SimpleChatResponse(BaseModel):
     message: str
     intent: str = "general_chat"
     confidence: float = 1.0
+    joins: List[Dict[str, Any]] = []  # Add joins field for structured join data
 
 
 @router.post("/ai/chat", response_model=ChatResponse)
@@ -327,7 +424,8 @@ async def lifestring_ai_chat_public(
                     return SimpleChatResponse(
                         message=message,
                         intent="profile_inquiry",
-                        confidence=0.95
+                        confidence=0.95,
+                        joins=[]
                     )
 
                 # If asking specifically about hobbies
@@ -341,7 +439,8 @@ async def lifestring_ai_chat_public(
                     return SimpleChatResponse(
                         message=message,
                         intent="profile_inquiry",
-                        confidence=0.95
+                        confidence=0.95,
+                        joins=[]
                     )
 
                 # For interests query
@@ -359,7 +458,8 @@ async def lifestring_ai_chat_public(
                     return SimpleChatResponse(
                         message=message,
                         intent="profile_inquiry",
-                        confidence=0.95
+                        confidence=0.95,
+                        joins=[]
                     )
 
             # For other messages with profile data, use enhanced OpenAI with real-time capabilities
@@ -516,16 +616,24 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
                     max_tokens=500
                 )
 
+                # Extract joins from the response
+                joins = extract_joins_from_response(final_response["content"], request.message)
+
                 return SimpleChatResponse(
                     message=final_response["content"],
                     intent="general_chat",
-                    confidence=0.9
+                    confidence=0.9,
+                    joins=joins
                 )
+
+            # Extract joins from the response
+            joins = extract_joins_from_response(response["content"], request.message)
 
             return SimpleChatResponse(
                 message=response["content"],
                 intent="general_chat",
-                confidence=0.9
+                confidence=0.9,
+                joins=joins
             )
 
         # If no profile data, use enhanced OpenAI with real-time capabilities
@@ -638,18 +746,26 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
 
             logger.info(f"AI response (with functions): {final_response['content']}")
 
+            # Extract joins from the response
+            joins = extract_joins_from_response(final_response["content"], request.message)
+
             return SimpleChatResponse(
                 message=final_response["content"],
                 intent="general_chat",
-                confidence=0.9
+                confidence=0.9,
+                joins=joins
             )
 
         logger.info(f"AI response: {response['content']}")
 
+        # Extract joins from the response
+        joins = extract_joins_from_response(response["content"], request.message)
+
         return SimpleChatResponse(
             message=response["content"],
             intent="general_chat",
-            confidence=0.9
+            confidence=0.9,
+            joins=joins
         )
     except Exception as e:
         logger.error(f"Error in AI chat: {str(e)}", exc_info=True)
@@ -657,7 +773,8 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
         return SimpleChatResponse(
             message="I'm having trouble connecting right now. Please try again in a moment.",
             intent="general_chat",
-            confidence=1.0
+            confidence=1.0,
+            joins=[]
         )
 
 

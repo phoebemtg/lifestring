@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import CreateJoinModal from './CreateJoinModal';
+import ChatMessage from './ChatMessage';
 import lifestringLogo from '@/assets/lifestring-header-logo.png';
 
 
@@ -31,10 +32,26 @@ interface StringsInterfaceProps {
   onConversationLoaded?: () => void;
 }
 
+interface JoinData {
+  id: string;
+  title: string;
+  description?: string;
+  location?: string;
+  duration?: string;
+  max_participants?: number;
+  current_participants?: number;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  tags?: string[];
+  is_joined?: boolean;
+  match_score?: number;
+  created_at: string;
+}
+
 interface ChatMessage {
   type: 'user' | 'ai';
   content: string;
   timestamp: Date;
+  joins?: JoinData[];
 }
 
 const StringsInterface: React.FC<StringsInterfaceProps> = ({
@@ -699,7 +716,9 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
         if (fallbackResponse.ok) {
           const data = await fallbackResponse.json();
           aiResponse = data.message;
+          const joins = data.joins || [];
           console.log('✅ Public API response received:', aiResponse);
+          console.log('🎯 Joins received:', joins);
 
           // Simulate streaming for public response
           if (aiResponse) {
@@ -709,7 +728,7 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
             // Add the AI message when we start streaming
             let actualAiMessageIndex: number;
             setChatMessages(prev => {
-              const newMessages = [...prev, { type: 'ai' as const, content: '', timestamp: new Date() }];
+              const newMessages = [...prev, { type: 'ai' as const, content: '', timestamp: new Date(), joins }];
               actualAiMessageIndex = newMessages.length - 1; // The AI message is the last one
               return newMessages;
             });
@@ -724,7 +743,8 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
                   newMessages[actualAiMessageIndex] = {
                     type: 'ai',
                     content: currentText,
-                    timestamp: new Date()
+                    timestamp: new Date(),
+                    joins
                   };
                 }
                 return newMessages;
@@ -899,17 +919,17 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
                 className="flex-1 space-y-4 overflow-y-auto pr-4"
               >
                 {chatMessages.map((message, index) => (
-                  <div key={index} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] p-4 ${
-                      message.type === 'user'
-                        ? '!text-black rounded-2xl shadow-sm'
-                        : '!text-black bg-transparent border-l-4 border-gray-200 pl-4 ml-2'
-                    }`}
-                    style={message.type === 'user' ? { backgroundColor: selectedOrbColor } : {}}
-                    >
-                      <p className="text-sm whitespace-pre-wrap leading-relaxed !text-black">{message.content}</p>
-                    </div>
-                  </div>
+                  <ChatMessage
+                    key={index}
+                    type={message.type}
+                    content={message.content}
+                    joins={message.joins}
+                    selectedOrbColor={selectedOrbColor}
+                    onJoinActivity={(joinId) => {
+                      console.log('Join activity clicked:', joinId);
+                      // TODO: Implement join functionality
+                    }}
+                  />
                 ))}
 
                 {/* Single pulsing dot loading indicator */}
