@@ -20,13 +20,9 @@ interface CreateJoinModalProps {
 interface JoinFormData {
   title: string;
   description: string;
-  type: 'trip' | 'event' | 'activity';
   location: string;
-  date: string;
-  time: string;
   duration: string;
   maxParticipants: string;
-  cost: string;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   tags: string[];
 }
@@ -40,13 +36,9 @@ const CreateJoinModal: React.FC<CreateJoinModalProps> = ({ isOpen, onClose, onJo
   const [formData, setFormData] = useState<JoinFormData>({
     title: '',
     description: '',
-    type: 'activity',
     location: '',
-    date: '',
-    time: '',
     duration: '',
     maxParticipants: '10',
-    cost: '0',
     difficulty: 'beginner',
     tags: []
   });
@@ -97,13 +89,9 @@ const CreateJoinModal: React.FC<CreateJoinModalProps> = ({ isOpen, onClose, onJo
         id: Date.now().toString(),
         title: formData.title,
         description: formData.description,
-        type: formData.type,
         location: formData.location,
-        date: formData.date,
-        time: formData.time,
         duration: formData.duration,
         max_participants: parseInt(formData.maxParticipants) || 10,
-        cost: formData.cost ? `$${formData.cost}` : 'Free',
         difficulty: formData.difficulty,
         tags: formData.tags,
         created_at: new Date().toISOString()
@@ -124,13 +112,9 @@ const CreateJoinModal: React.FC<CreateJoinModalProps> = ({ isOpen, onClose, onJo
       setFormData({
         title: '',
         description: '',
-        type: 'activity',
         location: '',
-        date: '',
-        time: '',
         duration: '',
         maxParticipants: '10',
-        cost: '0',
         difficulty: 'beginner',
         tags: []
       });
@@ -171,20 +155,7 @@ const CreateJoinModal: React.FC<CreateJoinModalProps> = ({ isOpen, onClose, onJo
             />
           </div>
 
-          {/* Type */}
-          <div className="space-y-2">
-            <Label htmlFor="type" className="text-sm font-medium">Type</Label>
-            <Select value={formData.type} onValueChange={(value: 'trip' | 'event' | 'activity') => handleInputChange('type', value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="activity">Activity</SelectItem>
-                <SelectItem value="event">Event</SelectItem>
-                <SelectItem value="trip">Trip</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+
 
           {/* Description */}
           <div className="space-y-2">
@@ -209,27 +180,7 @@ const CreateJoinModal: React.FC<CreateJoinModalProps> = ({ isOpen, onClose, onJo
             />
           </div>
 
-          {/* Date and Time */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="date" className="text-sm font-medium">Date</Label>
-              <Input
-                id="date"
-                type="date"
-                value={formData.date}
-                onChange={(e) => handleInputChange('date', e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="time" className="text-sm font-medium">Time</Label>
-              <Input
-                id="time"
-                type="time"
-                value={formData.time}
-                onChange={(e) => handleInputChange('time', e.target.value)}
-              />
-            </div>
-          </div>
+
 
           {/* Duration and Max Participants */}
           <div className="grid grid-cols-2 gap-4">
@@ -255,32 +206,19 @@ const CreateJoinModal: React.FC<CreateJoinModalProps> = ({ isOpen, onClose, onJo
             </div>
           </div>
 
-          {/* Cost and Difficulty */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="cost" className="text-sm font-medium">Cost ($)</Label>
-              <Input
-                id="cost"
-                type="number"
-                min="0"
-                value={formData.cost}
-                onChange={(e) => handleInputChange('cost', e.target.value)}
-                placeholder="0 for free"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="difficulty" className="text-sm font-medium">Difficulty</Label>
-              <Select value={formData.difficulty} onValueChange={(value: 'beginner' | 'intermediate' | 'advanced') => handleInputChange('difficulty', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select difficulty" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="beginner">Beginner</SelectItem>
-                  <SelectItem value="intermediate">Intermediate</SelectItem>
-                  <SelectItem value="advanced">Advanced</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Difficulty */}
+          <div className="space-y-2">
+            <Label htmlFor="difficulty" className="text-sm font-medium">Difficulty</Label>
+            <Select value={formData.difficulty} onValueChange={(value: 'beginner' | 'intermediate' | 'advanced') => handleInputChange('difficulty', value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select difficulty" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="beginner">Beginner</SelectItem>
+                <SelectItem value="intermediate">Intermediate</SelectItem>
+                <SelectItem value="advanced">Advanced</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Tags */}

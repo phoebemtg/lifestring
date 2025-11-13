@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lifestring GPT-5 API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+        }
+        input {
+            width: 300px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .response {
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .success { background: rgba(76, 175, 80, 0.3); }
+        .error { background: rgba(244, 67, 54, 0.3); }
+        .loading { background: rgba(255, 193, 7, 0.3); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Lifestring GPT-5 API Test</h1>
+        
+        <div class="test-section">
+            <h3>🧪 Test GPT-5 Chat API</h3>
+            <p>Test the Lifestring AI chat with GPT-5 backend</p>
+            <input type="text" id="messageInput" placeholder="Enter your message (e.g., 'I want to go hiking')" value="I want to go hiking this weekend">
+            <button onclick="testChat()">Send Message</button>
+            <div id="chatStatus" class="status"></div>
+            <div id="chatResponse" class="response"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔗 Backend Connection Test</h3>
+            <button onclick="testConnection()">Test Backend Connection</button>
+            <div id="connectionStatus" class="status"></div>
+            <div id="connectionResponse" class="response"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📋 Quick Tests</h3>
+            <button onclick="quickTest('I want to try rock climbing')">Rock Climbing</button>
+            <button onclick="quickTest('Any cooking classes?')">Cooking Classes</button>
+            <button onclick="quickTest('Photography activities?')">Photography</button>
+            <button onclick="quickTest('Beach volleyball games?')">Beach Volleyball</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://lifestring-api-6946562411.us-central1.run.app/api';
+
+        async function testChat() {
+            const message = document.getElementById('messageInput').value;
+            const statusEl = document.getElementById('chatStatus');
+            const responseEl = document.getElementById('chatResponse');
+            
+            if (!message.trim()) {
+                statusEl.className = 'status error';
+                statusEl.textContent = '❌ Please enter a message';
+                return;
+            }
+
+            statusEl.className = 'status loading';
+            statusEl.textContent = '⏳ Sending message to GPT-5...';
+            responseEl.textContent = '';
+
+            try {
+                const response = await fetch(`${API_BASE}/ai/lifestring-chat-public`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                statusEl.className = 'status success';
+                statusEl.textContent = '✅ GPT-5 Response Received!';
+                responseEl.textContent = JSON.stringify(data, null, 2);
+                
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.textContent = `❌ Error: ${error.message}`;
+                responseEl.textContent = error.stack || error.toString();
+            }
+        }
+
+        async function testConnection() {
+            const statusEl = document.getElementById('connectionStatus');
+            const responseEl = document.getElementById('connectionResponse');
+            
+            statusEl.className = 'status loading';
+            statusEl.textContent = '⏳ Testing backend connection...';
+            responseEl.textContent = '';
+
+            try {
+                const response = await fetch(`${API_BASE}/health`, {
+                    method: 'GET',
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                statusEl.className = 'status success';
+                statusEl.textContent = '✅ Backend Connection Successful!';
+                responseEl.textContent = JSON.stringify(data, null, 2);
+                
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.textContent = `❌ Connection Error: ${error.message}`;
+                responseEl.textContent = error.stack || error.toString();
+            }
+        }
+
+        async function quickTest(message) {
+            document.getElementById('messageInput').value = message;
+            await testChat();
+        }
+
+        // Test connection on page load
+        window.onload = function() {
+            testConnection();
+        };
+    </script>
+</body>
+</html>

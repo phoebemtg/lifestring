@@ -29,13 +29,9 @@ def event_to_join_response(event: Event, current_user_id: str = None) -> JoinRes
         user_id=event.user_id,
         title=event.title,
         description=event.description,
-        type=meta_data.get('type', 'activity'),
         location=event.location,
-        date=meta_data.get('date', ''),
-        time=meta_data.get('time', ''),
         duration=meta_data.get('duration', ''),
         max_participants=meta_data.get('max_participants', 10),
-        cost=meta_data.get('cost', 'Free'),
         difficulty=meta_data.get('difficulty', 'beginner'),
         tags=meta_data.get('tags', []),
         current_participants=meta_data.get('current_participants', 1),
@@ -56,29 +52,14 @@ async def create_join(
     try:
         logger.info(f"Creating join for user {current_user.user_id}: {join_data.title}")
         
-        # Parse date/time if provided
+        # Use current time as default start time
         start_time = datetime.now(timezone.utc)
-        if join_data.date and join_data.time:
-            try:
-                date_time_str = f"{join_data.date} {join_data.time}"
-                start_time = datetime.fromisoformat(date_time_str.replace('Z', '+00:00'))
-            except ValueError:
-                logger.warning(f"Could not parse date/time: {join_data.date} {join_data.time}")
-        elif join_data.date:
-            try:
-                start_time = datetime.fromisoformat(join_data.date.replace('Z', '+00:00'))
-            except ValueError:
-                logger.warning(f"Could not parse date: {join_data.date}")
-        
-        # Create event with join-specific metadata
+
+        # Create event with simplified join metadata
         meta_data = {
-            'type': join_data.type,
-            'date': join_data.date or '',
-            'time': join_data.time or '',
             'duration': join_data.duration or '',
             'max_participants': join_data.max_participants or 10,
             'current_participants': 1,  # Creator is first participant
-            'cost': join_data.cost or 'Free',
             'difficulty': join_data.difficulty or 'beginner',
             'tags': join_data.tags or [],
             'match_score': 100.0,  # Perfect match for creator
@@ -112,7 +93,6 @@ async def create_join(
 async def get_joins(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
-    type: Optional[str] = Query(None),
     location: Optional[str] = Query(None),
     difficulty: Optional[str] = Query(None),
     search: Optional[str] = Query(None, description="Search in title, description, and tags"),
@@ -129,8 +109,6 @@ async def get_joins(
         )
         
         # Apply filters
-        if type:
-            query = query.filter(Event.meta_data.op('->>')('type') == type)
         if location:
             query = query.filter(Event.location.ilike(f"%{location}%"))
         if difficulty:

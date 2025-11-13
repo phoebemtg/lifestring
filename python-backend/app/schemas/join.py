@@ -10,16 +10,12 @@ from app.schemas.user import UserResponse
 
 # Base schemas
 class JoinBase(BaseModel):
-    """Base join schema."""
+    """Base join schema - cleaned up design."""
     title: str
     description: Optional[str] = None
-    type: str  # 'trip', 'event', 'activity'
     location: Optional[str] = None
-    date: Optional[str] = None
-    time: Optional[str] = None
     duration: Optional[str] = None
     max_participants: Optional[int] = 10
-    cost: Optional[str] = "Free"
     difficulty: Optional[str] = "beginner"  # 'beginner', 'intermediate', 'advanced'
     tags: Optional[List[str]] = []
 
@@ -34,13 +30,9 @@ class JoinUpdate(BaseModel):
     """Schema for updating a join."""
     title: Optional[str] = None
     description: Optional[str] = None
-    type: Optional[str] = None
     location: Optional[str] = None
-    date: Optional[str] = None
-    time: Optional[str] = None
     duration: Optional[str] = None
     max_participants: Optional[int] = None
-    cost: Optional[str] = None
     difficulty: Optional[str] = None
     tags: Optional[List[str]] = None
 

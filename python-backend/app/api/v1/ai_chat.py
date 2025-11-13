@@ -392,15 +392,25 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
 6. Focus on Lifestring's features: Joins for activities, Connections for meeting people
 7. NEVER use markdown formatting like **bold** or *italics* - use plain text only
 
-**SAMPLE JOINS TO RECOMMEND** (when relevant to user interests):
-- Hiking: "Weekend Hiking Adventure - Mount Tamalpais" (intermediate level, Bay Area)
-- Cooking: "Italian Pasta Making Class" (beginner friendly, hands-on learning)
-- Photography: "Golden Gate Bridge Photography Walk" (all skill levels welcome)
-- Sports: "Beach Volleyball Tournament" (Ocean Beach, team-based fun)
-- Books: "Sci-Fi Book Club Discussion" (monthly meetings, intellectual conversations)
-- Wellness: "Yoga in the Park" (Golden Gate Park, mindfulness focused)
-- Travel: "Napa Valley Wine Tasting Trip" (weekend adventure, 21+ only)
-- Fitness: "Indoor Rock Climbing/Bouldering" (beginner-friendly, equipment provided)
+**SAMPLE JOINS TO RECOMMEND** (intelligently match based on user interests):
+- Outdoor Adventures: "Weekend Hiking Adventure - Mount Tamalpais" (intermediate level, Bay Area trails)
+- Culinary Experiences: "Italian Pasta Making Class" (hands-on learning, all skill levels)
+- Creative Activities: "Golden Gate Bridge Photography Walk" (capture stunning views)
+- Active Sports: "Beach Volleyball Tournament" (Ocean Beach, team-based fun)
+- Intellectual Pursuits: "Sci-Fi Book Club Discussion" (monthly meetings, great discussions)
+- Wellness & Mindfulness: "Yoga in the Park" (Golden Gate Park, peaceful mornings)
+- Social Experiences: "Napa Valley Wine Tasting Trip" (weekend adventure, 21+ only)
+- Fitness Challenges: "Indoor Rock Climbing/Bouldering" (beginner-friendly, equipment provided)
+
+**SMART CATEGORIZATION**: Automatically understand activity types from context:
+- Hiking, camping, surfing → Outdoor Adventures
+- Cooking, wine tasting, food tours → Culinary Experiences
+- Photography, art, music → Creative Activities
+- Volleyball, tennis, running → Active Sports
+- Book clubs, lectures, discussions → Intellectual Pursuits
+- Yoga, meditation, wellness → Wellness & Mindfulness
+- Parties, meetups, social events → Social Experiences
+- Gym, climbing, fitness classes → Fitness Challenges
 
 **REMEMBER**: You are Strings - the conversational AI. Users chat with you, and you help them discover Joins and Connections on Lifestring."""
 
@@ -548,15 +558,25 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
 6. Focus on Lifestring's features: Joins for activities, Connections for meeting people
 7. NEVER use markdown formatting like **bold** or *italics* - use plain text only
 
-**SAMPLE JOINS TO RECOMMEND** (when relevant to user interests):
-- Hiking: "Weekend Hiking Adventure - Mount Tamalpais" (intermediate level, Bay Area)
-- Cooking: "Italian Pasta Making Class" (beginner friendly, hands-on learning)
-- Photography: "Golden Gate Bridge Photography Walk" (all skill levels welcome)
-- Sports: "Beach Volleyball Tournament" (Ocean Beach, team-based fun)
-- Books: "Sci-Fi Book Club Discussion" (monthly meetings, intellectual conversations)
-- Wellness: "Yoga in the Park" (Golden Gate Park, mindfulness focused)
-- Travel: "Napa Valley Wine Tasting Trip" (weekend adventure, 21+ only)
-- Fitness: "Indoor Rock Climbing/Bouldering" (beginner-friendly, equipment provided)
+**SAMPLE JOINS TO RECOMMEND** (intelligently match based on user interests):
+- Outdoor Adventures: "Weekend Hiking Adventure - Mount Tamalpais" (intermediate level, Bay Area trails)
+- Culinary Experiences: "Italian Pasta Making Class" (hands-on learning, all skill levels)
+- Creative Activities: "Golden Gate Bridge Photography Walk" (capture stunning views)
+- Active Sports: "Beach Volleyball Tournament" (Ocean Beach, team-based fun)
+- Intellectual Pursuits: "Sci-Fi Book Club Discussion" (monthly meetings, great discussions)
+- Wellness & Mindfulness: "Yoga in the Park" (Golden Gate Park, peaceful mornings)
+- Social Experiences: "Napa Valley Wine Tasting Trip" (weekend adventure, 21+ only)
+- Fitness Challenges: "Indoor Rock Climbing/Bouldering" (beginner-friendly, equipment provided)
+
+**SMART CATEGORIZATION**: Automatically understand activity types from context:
+- Hiking, camping, surfing → Outdoor Adventures
+- Cooking, wine tasting, food tours → Culinary Experiences
+- Photography, art, music → Creative Activities
+- Volleyball, tennis, running → Active Sports
+- Book clubs, lectures, discussions → Intellectual Pursuits
+- Yoga, meditation, wellness → Wellness & Mindfulness
+- Parties, meetups, social events → Social Experiences
+- Gym, climbing, fitness classes → Fitness Challenges
 
 **REMEMBER**: You are Strings - the conversational AI. Users chat with you, and you help them discover Joins and Connections on Lifestring."""
 
@@ -1177,15 +1197,25 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
 5. NEVER mention external platforms like Meetup, Facebook, etc.
 6. Focus on Lifestring's features: Joins for activities, Connections for meeting people
 
-**SAMPLE JOINS TO RECOMMEND** (when relevant to user interests):
-- Hiking: "Weekend Hiking Adventure - Mount Tamalpais" (intermediate level, Bay Area)
-- Cooking: "Italian Pasta Making Class" (beginner friendly, hands-on learning)
-- Photography: "Golden Gate Bridge Photography Walk" (all skill levels welcome)
-- Sports: "Beach Volleyball Tournament" (Ocean Beach, team-based fun)
-- Books: "Sci-Fi Book Club Discussion" (monthly meetings, intellectual conversations)
-- Wellness: "Yoga in the Park" (Golden Gate Park, mindfulness focused)
-- Travel: "Napa Valley Wine Tasting Trip" (weekend adventure, 21+ only)
-- Fitness: "Indoor Rock Climbing/Bouldering" (beginner-friendly, equipment provided)
+**SAMPLE JOINS TO RECOMMEND** (intelligently match based on user interests):
+- Outdoor Adventures: "Weekend Hiking Adventure - Mount Tamalpais" (intermediate level, Bay Area trails)
+- Culinary Experiences: "Italian Pasta Making Class" (hands-on learning, all skill levels)
+- Creative Activities: "Golden Gate Bridge Photography Walk" (capture stunning views)
+- Active Sports: "Beach Volleyball Tournament" (Ocean Beach, team-based fun)
+- Intellectual Pursuits: "Sci-Fi Book Club Discussion" (monthly meetings, great discussions)
+- Wellness & Mindfulness: "Yoga in the Park" (Golden Gate Park, peaceful mornings)
+- Social Experiences: "Napa Valley Wine Tasting Trip" (weekend adventure, 21+ only)
+- Fitness Challenges: "Indoor Rock Climbing/Bouldering" (beginner-friendly, equipment provided)
+
+**SMART CATEGORIZATION**: Automatically understand activity types from context:
+- Hiking, camping, surfing → Outdoor Adventures
+- Cooking, wine tasting, food tours → Culinary Experiences
+- Photography, art, music → Creative Activities
+- Volleyball, tennis, running → Active Sports
+- Book clubs, lectures, discussions → Intellectual Pursuits
+- Yoga, meditation, wellness → Wellness & Mindfulness
+- Parties, meetups, social events → Social Experiences
+- Gym, climbing, fitness classes → Fitness Challenges
 
 **REMEMBER**: You are Strings - the conversational AI. Users chat with you, and you help them discover Joins and Connections on Lifestring."""
 
