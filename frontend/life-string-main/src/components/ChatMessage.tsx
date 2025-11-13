@@ -55,7 +55,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                 key={join.id}
                 join={join}
                 compact={true}
-                onJoin={onJoinActivity}
+                onViewDetails={onJoinActivity}
                 className="mb-2"
               />
             ))}

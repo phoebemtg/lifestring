@@ -18,12 +18,35 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def event_to_join_response(event: Event, current_user_id: str = None) -> JoinResponse:
+def event_to_join_response(event: Event, current_user_id: str = None, db: Session = None) -> JoinResponse:
     """Convert Event model to JoinResponse."""
     # Extract join-specific data from meta_data
     meta_data = event.meta_data or {}
     custom_fields = event.custom_fields or {}
-    
+
+    # Get user information if db session is provided
+    user_info = None
+    if db and event.user_id:
+        try:
+            from app.models.user import User
+            user = db.query(User).filter(User.user_id == event.user_id).first()
+            if user:
+                # Try to get user profile for name and avatar
+                user_profile_query = db.execute(
+                    "SELECT name, avatar_url FROM user_profiles WHERE user_id = :user_id",
+                    {"user_id": event.user_id}
+                )
+                user_profile = user_profile_query.fetchone()
+
+                user_info = {
+                    "id": user.user_id,
+                    "name": user_profile.name if user_profile and user_profile.name else user.email.split('@')[0],
+                    "avatar": user_profile.avatar_url if user_profile and user_profile.avatar_url else None,
+                    "email": user.email
+                }
+        except Exception as e:
+            logger.warning(f"Could not fetch user info for join creator {event.user_id}: {e}")
+
     return JoinResponse(
         id=event.id,
         user_id=event.user_id,
@@ -38,7 +61,7 @@ def event_to_join_response(event: Event, current_user_id: str = None) -> JoinRes
         is_joined=str(event.user_id) == str(current_user_id),
         match_score=meta_data.get('match_score', 100.0 if str(event.user_id) == str(current_user_id) else 0.0),
         created_at=event.created_at,
-        user=None  # Can be populated if needed
+        user=user_info
     )
 
 
@@ -81,7 +104,7 @@ async def create_join(
         db.refresh(event)
         
         logger.info(f"Successfully created join {event.id}")
-        return event_to_join_response(event, str(current_user.user_id))
+        return event_to_join_response(event, str(current_user.user_id), db)
         
     except Exception as e:
         logger.error(f"Error creating join: {str(e)}")
@@ -132,7 +155,7 @@ async def get_joins(
         events = query.order_by(Event.created_at.desc()).offset(offset).limit(per_page).all()
         
         # Convert to join responses
-        joins = [event_to_join_response(event, str(current_user.user_id)) for event in events]
+        joins = [event_to_join_response(event, str(current_user.user_id), db) for event in events]
         
         logger.info(f"Found {len(joins)} joins (page {page}, total {total})")
         
@@ -175,7 +198,7 @@ async def get_my_joins(
         events = query.order_by(Event.created_at.desc()).offset(offset).limit(per_page).all()
         
         # Convert to join responses
-        joins = [event_to_join_response(event, str(current_user.user_id)) for event in events]
+        joins = [event_to_join_response(event, str(current_user.user_id), db) for event in events]
         
         logger.info(f"Found {len(joins)} joins created by user (page {page}, total {total})")
         
@@ -211,7 +234,7 @@ async def get_join(
         if not event:
             raise HTTPException(status_code=404, detail="Join not found")
         
-        return event_to_join_response(event, str(current_user.user_id))
+        return event_to_join_response(event, str(current_user.user_id), db)
         
     except HTTPException:
         raise
@@ -275,7 +298,7 @@ async def update_join(
         db.refresh(event)
         
         logger.info(f"Successfully updated join {join_id}")
-        return event_to_join_response(event, str(current_user.user_id))
+        return event_to_join_response(event, str(current_user.user_id), db)
         
     except HTTPException:
         raise

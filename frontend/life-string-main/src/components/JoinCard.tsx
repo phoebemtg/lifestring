@@ -83,7 +83,8 @@ const JoinCard: React.FC<JoinCardProps> = ({
   // Compact version for chat messages
   if (compact) {
     return (
-      <Card className={`w-full max-w-sm hover:shadow-md transition-shadow duration-200 cursor-pointer ${className}`}>
+      <Card className={`w-full max-w-sm hover:shadow-md transition-shadow duration-200 cursor-pointer ${className}`}
+            onClick={() => onViewDetails?.(join.id)}>
         <CardContent className="p-3">
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1">
@@ -105,6 +106,22 @@ const JoinCard: React.FC<JoinCardProps> = ({
             <p className="text-gray-600 text-xs mb-2 line-clamp-2">
               {join.description}
             </p>
+          )}
+
+          {/* Creator info */}
+          {join.user && (
+            <div className="flex items-center mb-2">
+              <div className="w-6 h-6 rounded-full bg-gray-200 mr-2 overflow-hidden">
+                {join.user.avatar ? (
+                  <img src={join.user.avatar} alt={join.user.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-blue-500 flex items-center justify-center text-white text-xs font-semibold">
+                    {join.user.name?.charAt(0) || 'U'}
+                  </div>
+                )}
+              </div>
+              <span className="text-xs text-gray-600">Created by {join.user.name}</span>
+            </div>
           )}
 
           <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
@@ -145,17 +162,12 @@ const JoinCard: React.FC<JoinCardProps> = ({
             <Button
               onClick={(e) => {
                 e.stopPropagation();
-                onJoin?.(join.id);
+                onViewDetails?.(join.id);
               }}
               size="sm"
-              className={`text-xs px-2 py-1 h-6 ${
-                join.is_joined
-                  ? "bg-green-600 hover:bg-green-700 text-white"
-                  : "bg-blue-600 hover:bg-blue-700 text-white"
-              }`}
-              disabled={join.is_joined}
+              className="text-xs px-2 py-1 h-6 bg-blue-600 hover:bg-blue-700 text-white"
             >
-              {join.is_joined ? "Joined" : "Join"}
+              View Details
             </Button>
           </div>
         </CardContent>

@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import CreateJoinModal from './CreateJoinModal';
 import ChatMessage from './ChatMessage';
+import JoinPreviewModal from './JoinPreviewModal';
 import lifestringLogo from '@/assets/lifestring-header-logo.png';
 
 
@@ -45,6 +46,12 @@ interface JoinData {
   is_joined?: boolean;
   match_score?: number;
   created_at: string;
+  user?: {
+    id: string;
+    name?: string;
+    avatar?: string;
+    email?: string;
+  };
 }
 
 interface ChatMessage {
@@ -72,6 +79,8 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
   const [detailedProfile, setDetailedProfile] = useState<any>(null);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [isCreateJoinModalOpen, setIsCreateJoinModalOpen] = useState(false);
+  const [selectedJoin, setSelectedJoin] = useState<JoinData | null>(null);
+  const [isJoinPreviewOpen, setIsJoinPreviewOpen] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -751,7 +760,29 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
                     userMessage.toLowerCase().includes('volleyball') ? ['volleyball', 'beach', 'sports'] :
                     ['photography', 'art', 'nature'],
               match_score: 92,
-              created_at: new Date().toISOString()
+              created_at: new Date().toISOString(),
+              user: {
+                id: userMessage.toLowerCase().includes('climbing') ? 'user_climbing_001' :
+                     userMessage.toLowerCase().includes('hiking') ? 'user_hiking_001' :
+                     userMessage.toLowerCase().includes('cooking') ? 'user_cooking_001' :
+                     userMessage.toLowerCase().includes('volleyball') ? 'user_volleyball_001' :
+                     'user_photo_001',
+                name: userMessage.toLowerCase().includes('climbing') ? 'David Thompson' :
+                      userMessage.toLowerCase().includes('hiking') ? 'Sarah Chen' :
+                      userMessage.toLowerCase().includes('cooking') ? 'Marco Rossi' :
+                      userMessage.toLowerCase().includes('volleyball') ? 'Jessica Martinez' :
+                      'Alex Kim',
+                avatar: userMessage.toLowerCase().includes('climbing') ? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face' :
+                        userMessage.toLowerCase().includes('hiking') ? 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face' :
+                        userMessage.toLowerCase().includes('cooking') ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face' :
+                        userMessage.toLowerCase().includes('volleyball') ? 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face' :
+                        'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
+                email: userMessage.toLowerCase().includes('climbing') ? 'david.thompson@example.com' :
+                       userMessage.toLowerCase().includes('hiking') ? 'sarah.chen@example.com' :
+                       userMessage.toLowerCase().includes('cooking') ? 'marco.rossi@example.com' :
+                       userMessage.toLowerCase().includes('volleyball') ? 'jessica.martinez@example.com' :
+                       'alex.kim@example.com'
+              }
             }];
           }
 
@@ -817,6 +848,41 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Handler for viewing join details
+  const handleViewJoinDetails = (joinId: string) => {
+    // Find the join in the current chat messages
+    for (const message of chatMessages) {
+      if (message.joins) {
+        const join = message.joins.find(j => j.id === joinId);
+        if (join) {
+          setSelectedJoin(join);
+          setIsJoinPreviewOpen(true);
+          return;
+        }
+      }
+    }
+    console.log('Join not found:', joinId);
+  };
+
+  // Handler for messaging the join creator
+  const handleMessageCreator = (join: JoinData) => {
+    setIsJoinPreviewOpen(false);
+
+    // Create a message that includes context about the join
+    const joinContext = `Hi! I'm interested in your join: "${join.title}". `;
+    setInputValue(joinContext);
+
+    // TODO: In a real implementation, this would:
+    // 1. Navigate to a direct message interface with the creator
+    // 2. Pre-populate the message with join context
+    // 3. Include join details in the conversation
+
+    toast({
+      title: "Message Draft Ready",
+      description: `Message draft created for ${join.user?.name}. The join context has been added to your input.`,
+    });
   };
 
   return (
@@ -963,10 +1029,7 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
                     content={message.content}
                     joins={message.joins}
                     selectedOrbColor={selectedOrbColor}
-                    onJoinActivity={(joinId) => {
-                      console.log('Join activity clicked:', joinId);
-                      // TODO: Implement join functionality
-                    }}
+                    onJoinActivity={handleViewJoinDetails}
                   />
                 ))}
 
@@ -1069,6 +1132,18 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
         accept="image/*,.pdf,.txt,.doc,.docx"
         onChange={handleFileSelect}
         className="hidden"
+      />
+
+      {/* Join Preview Modal */}
+      <JoinPreviewModal
+        join={selectedJoin}
+        isOpen={isJoinPreviewOpen}
+        onClose={() => setIsJoinPreviewOpen(false)}
+        onMessageCreator={handleMessageCreator}
+        onJoin={(joinId) => {
+          console.log('Join activity clicked:', joinId);
+          // TODO: Implement actual join functionality
+        }}
       />
     </div>
   );

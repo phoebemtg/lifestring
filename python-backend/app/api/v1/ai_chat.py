@@ -50,7 +50,13 @@ def extract_joins_from_response(response_text: str, user_message: str) -> List[D
             'difficulty': 'intermediate',
             'tags': ['hiking', 'outdoor', 'nature', 'bay area', 'weekend'],
             'match_score': 92,
-            'created_at': '2024-01-15T10:00:00Z'
+            'created_at': '2024-01-15T10:00:00Z',
+            'user': {
+                'id': 'user_hiking_001',
+                'name': 'Sarah Chen',
+                'avatar': 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
+                'email': 'sarah.chen@example.com'
+            }
         },
         'cooking': {
             'id': 'join_cooking_001',
@@ -63,7 +69,13 @@ def extract_joins_from_response(response_text: str, user_message: str) -> List[D
             'difficulty': 'beginner',
             'tags': ['cooking', 'italian', 'pasta', 'culinary', 'hands-on'],
             'match_score': 88,
-            'created_at': '2024-01-15T14:00:00Z'
+            'created_at': '2024-01-15T14:00:00Z',
+            'user': {
+                'id': 'user_cooking_001',
+                'name': 'Marco Rossi',
+                'avatar': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+                'email': 'marco.rossi@example.com'
+            }
         },
         'photography': {
             'id': 'join_photo_001',
@@ -76,7 +88,13 @@ def extract_joins_from_response(response_text: str, user_message: str) -> List[D
             'difficulty': 'beginner',
             'tags': ['photography', 'golden gate', 'scenic', 'creative', 'walk'],
             'match_score': 85,
-            'created_at': '2024-01-15T16:00:00Z'
+            'created_at': '2024-01-15T16:00:00Z',
+            'user': {
+                'id': 'user_photo_001',
+                'name': 'Alex Kim',
+                'avatar': 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
+                'email': 'alex.kim@example.com'
+            }
         },
         'volleyball': {
             'id': 'join_volleyball_001',
@@ -89,7 +107,13 @@ def extract_joins_from_response(response_text: str, user_message: str) -> List[D
             'difficulty': 'intermediate',
             'tags': ['volleyball', 'beach', 'tournament', 'team sport', 'ocean beach'],
             'match_score': 90,
-            'created_at': '2024-01-15T11:00:00Z'
+            'created_at': '2024-01-15T11:00:00Z',
+            'user': {
+                'id': 'user_volleyball_001',
+                'name': 'Jessica Martinez',
+                'avatar': 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face',
+                'email': 'jessica.martinez@example.com'
+            }
         },
         'climbing': {
             'id': 'join_climbing_001',
@@ -102,7 +126,13 @@ def extract_joins_from_response(response_text: str, user_message: str) -> List[D
             'difficulty': 'beginner',
             'tags': ['climbing', 'bouldering', 'indoor', 'fitness', 'beginner-friendly'],
             'match_score': 94,
-            'created_at': '2024-01-15T18:00:00Z'
+            'created_at': '2024-01-15T18:00:00Z',
+            'user': {
+                'id': 'user_climbing_001',
+                'name': 'David Thompson',
+                'avatar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face',
+                'email': 'david.thompson@example.com'
+            }
         }
     }
 
