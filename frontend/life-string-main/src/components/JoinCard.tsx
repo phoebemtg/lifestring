@@ -132,12 +132,7 @@ const JoinCard: React.FC<JoinCardProps> = ({
                   <span className="truncate max-w-[80px]">{join.location}</span>
                 </div>
               )}
-              {join.duration && (
-                <div className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  <span>{join.duration}</span>
-                </div>
-              )}
+
             </div>
             <div className="flex items-center gap-1">
               <Users className="h-3 w-3" />
@@ -219,12 +214,7 @@ const JoinCard: React.FC<JoinCardProps> = ({
               </div>
             )}
             
-            {join.duration && (
-              <div className="flex items-center space-x-1">
-                <Clock className="h-4 w-4" />
-                <span>{join.duration}</span>
-              </div>
-            )}
+
             
             <div className="flex items-center space-x-1">
               <Users className="h-4 w-4" />

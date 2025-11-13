@@ -21,7 +21,6 @@ interface JoinFormData {
   title: string;
   description: string;
   location: string;
-  duration: string;
   maxParticipants: string;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   tags: string[];
@@ -37,7 +36,6 @@ const CreateJoinModal: React.FC<CreateJoinModalProps> = ({ isOpen, onClose, onJo
     title: '',
     description: '',
     location: '',
-    duration: '',
     maxParticipants: '10',
     difficulty: 'beginner',
     tags: []
@@ -90,7 +88,6 @@ const CreateJoinModal: React.FC<CreateJoinModalProps> = ({ isOpen, onClose, onJo
         title: formData.title,
         description: formData.description,
         location: formData.location,
-        duration: formData.duration,
         max_participants: parseInt(formData.maxParticipants) || 10,
         difficulty: formData.difficulty,
         tags: formData.tags,
@@ -113,7 +110,6 @@ const CreateJoinModal: React.FC<CreateJoinModalProps> = ({ isOpen, onClose, onJo
         title: '',
         description: '',
         location: '',
-        duration: '',
         maxParticipants: '10',
         difficulty: 'beginner',
         tags: []
@@ -182,28 +178,18 @@ const CreateJoinModal: React.FC<CreateJoinModalProps> = ({ isOpen, onClose, onJo
 
 
 
-          {/* Duration and Max Participants */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="duration" className="text-sm font-medium">Duration</Label>
-              <Input
-                id="duration"
-                value={formData.duration}
-                onChange={(e) => handleInputChange('duration', e.target.value)}
-                placeholder="e.g., 2 hours, 3 days, 1 week"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="maxParticipants" className="text-sm font-medium">Max Participants</Label>
-              <Input
-                id="maxParticipants"
-                type="number"
-                min="1"
-                max="100"
-                value={formData.maxParticipants}
-                onChange={(e) => handleInputChange('maxParticipants', e.target.value)}
-              />
-            </div>
+          {/* Max Participants */}
+          <div className="space-y-2">
+            <Label htmlFor="maxParticipants" className="text-sm font-medium">Max Participants</Label>
+            <Input
+              id="maxParticipants"
+              type="number"
+              min="1"
+              max="100"
+              value={formData.maxParticipants}
+              onChange={(e) => handleInputChange('maxParticipants', e.target.value)}
+              placeholder="How many people can join?"
+            />
           </div>
 
           {/* Difficulty */}

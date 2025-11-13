@@ -38,7 +38,6 @@ interface JoinData {
   title: string;
   description?: string;
   location?: string;
-  duration?: string;
   max_participants?: number;
   current_participants?: number;
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
@@ -54,11 +53,24 @@ interface JoinData {
   };
 }
 
+interface GroupChatData {
+  id: string;
+  name: string;
+  description?: string;
+  member_count: number;
+  max_members?: number;
+  tags?: string[];
+  is_joined?: boolean;
+  match_score?: number;
+  created_at: string;
+}
+
 interface ChatMessage {
   type: 'user' | 'ai';
   content: string;
   timestamp: Date;
   joins?: JoinData[];
+  groupChats?: GroupChatData[];
 }
 
 const StringsInterface: React.FC<StringsInterfaceProps> = ({
@@ -750,7 +762,6 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
                        userMessage.toLowerCase().includes('cooking') ? 'Community Kitchen, Mission District' :
                        userMessage.toLowerCase().includes('volleyball') ? 'Ocean Beach, San Francisco' :
                        'Golden Gate Park, San Francisco',
-              duration: '3 hours',
               max_participants: 12,
               current_participants: 4,
               difficulty: 'intermediate',
@@ -870,18 +881,31 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
   const handleMessageCreator = (join: JoinData) => {
     setIsJoinPreviewOpen(false);
 
-    // Create a message that includes context about the join
-    const joinContext = `Hi! I'm interested in your join: "${join.title}". `;
-    setInputValue(joinContext);
+    if (!join.user) {
+      toast({
+        title: "Error",
+        description: "Unable to message creator - user information not available.",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    // TODO: In a real implementation, this would:
-    // 1. Navigate to a direct message interface with the creator
-    // 2. Pre-populate the message with join context
-    // 3. Include join details in the conversation
-
+    // Navigate to messaging interface with the creator
+    // For now, we'll show a toast and set up the messaging state
     toast({
-      title: "Message Draft Ready",
-      description: `Message draft created for ${join.user?.name}. The join context has been added to your input.`,
+      title: "Opening Message",
+      description: `Starting conversation with ${join.user.name} about "${join.title}"`,
+    });
+
+    // TODO: Implement actual navigation to messaging interface
+    // This could be done by:
+    // 1. Setting a messaging mode state
+    // 2. Using React Router to navigate to /messages/:userId
+    // 3. Opening a messaging modal/sidebar
+    console.log('Navigate to message:', {
+      recipientId: join.user.id,
+      recipientName: join.user.name,
+      joinContext: join.title
     });
   };
 

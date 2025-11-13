@@ -6,7 +6,6 @@ interface JoinData {
   title: string;
   description?: string;
   location?: string;
-  duration?: string;
   max_participants?: number;
   current_participants?: number;
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
@@ -14,6 +13,12 @@ interface JoinData {
   is_joined?: boolean;
   match_score?: number;
   created_at: string;
+  user?: {
+    id: string;
+    name?: string;
+    avatar?: string;
+    email?: string;
+  };
 }
 
 interface ChatMessageProps {

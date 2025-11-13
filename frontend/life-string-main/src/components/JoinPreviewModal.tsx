@@ -100,23 +100,14 @@ const JoinPreviewModal: React.FC<JoinPreviewModalProps> = ({
 
           {/* Details */}
           <div className="space-y-3">
-            <h4 className="font-medium text-gray-900">Details</h4>
-            
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="flex items-center justify-between text-sm">
               {join.location && (
                 <div className="flex items-center">
                   <MapPin className="h-4 w-4 text-gray-400 mr-2" />
                   <span className="text-gray-600">{join.location}</span>
                 </div>
               )}
-              
-              {join.duration && (
-                <div className="flex items-center">
-                  <Clock className="h-4 w-4 text-gray-400 mr-2" />
-                  <span className="text-gray-600">{join.duration}</span>
-                </div>
-              )}
-              
+
               <div className="flex items-center">
                 <Users className="h-4 w-4 text-gray-400 mr-2" />
                 <span className="text-gray-600">{participantsText}</span>
