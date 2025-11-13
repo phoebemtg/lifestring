@@ -716,7 +716,45 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
         if (fallbackResponse.ok) {
           const data = await fallbackResponse.json();
           aiResponse = data.message;
-          const joins = data.joins || [];
+          let joins = data.joins || [];
+
+          // TEMPORARY: Add mock joins for testing until backend is deployed
+          if (joins.length === 0 && (userMessage.toLowerCase().includes('climbing') ||
+                                     userMessage.toLowerCase().includes('hiking') ||
+                                     userMessage.toLowerCase().includes('cooking') ||
+                                     userMessage.toLowerCase().includes('volleyball') ||
+                                     userMessage.toLowerCase().includes('photography'))) {
+            joins = [{
+              id: 'mock_join_001',
+              title: userMessage.toLowerCase().includes('climbing') ? 'Weekend Rock Climbing Adventure' :
+                     userMessage.toLowerCase().includes('hiking') ? 'Mount Tamalpais Hiking Group' :
+                     userMessage.toLowerCase().includes('cooking') ? 'Italian Cooking Workshop' :
+                     userMessage.toLowerCase().includes('volleyball') ? 'Beach Volleyball Meetup' :
+                     'Photography Walk in Golden Gate Park',
+              description: userMessage.toLowerCase().includes('climbing') ? 'Join us for an exciting rock climbing session at the local climbing gym. Perfect for beginners and intermediate climbers!' :
+                          userMessage.toLowerCase().includes('hiking') ? 'Explore the beautiful trails of Mount Tamalpais with fellow hiking enthusiasts.' :
+                          userMessage.toLowerCase().includes('cooking') ? 'Learn to make authentic Italian pasta and sauces from scratch.' :
+                          userMessage.toLowerCase().includes('volleyball') ? 'Fun beach volleyball games every Saturday morning.' :
+                          'Capture the beauty of Golden Gate Park with fellow photography enthusiasts.',
+              location: userMessage.toLowerCase().includes('climbing') ? 'Mission Cliffs, San Francisco' :
+                       userMessage.toLowerCase().includes('hiking') ? 'Mount Tamalpais State Park' :
+                       userMessage.toLowerCase().includes('cooking') ? 'Community Kitchen, Mission District' :
+                       userMessage.toLowerCase().includes('volleyball') ? 'Ocean Beach, San Francisco' :
+                       'Golden Gate Park, San Francisco',
+              duration: '3 hours',
+              max_participants: 12,
+              current_participants: 4,
+              difficulty: 'intermediate',
+              tags: userMessage.toLowerCase().includes('climbing') ? ['rock climbing', 'fitness', 'adventure'] :
+                    userMessage.toLowerCase().includes('hiking') ? ['hiking', 'nature', 'outdoor'] :
+                    userMessage.toLowerCase().includes('cooking') ? ['cooking', 'italian', 'workshop'] :
+                    userMessage.toLowerCase().includes('volleyball') ? ['volleyball', 'beach', 'sports'] :
+                    ['photography', 'art', 'nature'],
+              match_score: 92,
+              created_at: new Date().toISOString()
+            }];
+          }
+
           console.log('✅ Public API response received:', aiResponse);
           console.log('🎯 Joins received:', joins);
 
