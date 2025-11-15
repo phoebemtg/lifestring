@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Calendar, MapPin, Lightbulb, Edit, Home, Users, MessageSquare, Camera, Plus, Search, Mail, Crown, UserPlus, Edit3, MessageCircle, X, Clock, UsersRound, Save, Phone, Globe, LogOut } from "lucide-react";
@@ -913,12 +913,41 @@ const CommonRoom = ({
     education: "",
     work: "",
     relationshipStatus: "",
-    lookingFor: ""
+    lookingFor: "",
+    profile_photo: ""
   });
   const [newInterest, setNewInterest] = useState("");
   const [newSkill, setNewSkill] = useState("");
   const [newPassion, setNewPassion] = useState("");
   const [newHobby, setNewHobby] = useState("");
+
+  // Function to load user's profile photo
+  const loadUserProfilePhoto = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('detailed_profiles')
+        .select('profile_photo')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching profile photo:', error);
+        return;
+      }
+
+      if (data?.profile_photo) {
+        setProfileData(prev => ({
+          ...prev,
+          profile_photo: data.profile_photo
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading profile photo:', error);
+    }
+  };
 
   const handleProfileSave = () => {
     setIsEditingProfile(false);
@@ -1107,6 +1136,13 @@ const CommonRoom = ({
   useEffect(() => {
     if (user?.id) {
       loadConnections();
+    }
+  }, [user?.id]);
+
+  // Load user profile photo when user changes
+  useEffect(() => {
+    if (user?.id) {
+      loadUserProfilePhoto();
     }
   }, [user?.id]);
 
@@ -1719,6 +1755,26 @@ const CommonRoom = ({
 
     return timestamp.toLocaleDateString();
   };
+
+  // Profile Icon Component - shows user's profile photo or Home icon as fallback
+  const ProfileIcon = ({ className }: { className?: string }) => {
+    if (profileData.profile_photo) {
+      return (
+        <Avatar className="h-4 w-4 rounded-full">
+          <AvatarImage
+            src={profileData.profile_photo}
+            alt="Profile"
+            className="object-cover"
+          />
+          <AvatarFallback className="bg-gray-100 text-gray-600">
+            <Home className="h-3 w-3" />
+          </AvatarFallback>
+        </Avatar>
+      );
+    }
+    return <Home className={className} />;
+  };
+
   const sidebarItems = [{
     id: 'ideas',
     label: 'Strings',
@@ -1735,7 +1791,7 @@ const CommonRoom = ({
   const houseSidebarItems = [{
     id: 'about-house',
     label: 'Your Profile',
-    icon: Home
+    icon: ProfileIcon
   }, {
     id: 'customize',
     label: 'Customize',

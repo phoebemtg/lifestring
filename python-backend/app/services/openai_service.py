@@ -46,10 +46,11 @@ class OpenAIService:
         temperature: float = 0.7,
         max_tokens: int = 500,
         tools: Optional[List[Dict[str, Any]]] = None,
+        use_fallback: bool = True,
         **kwargs
     ) -> Dict[str, Any]:
         """
-        Create chat completion with optional function calling.
+        Create chat completion with optional function calling and model fallback.
 
         Args:
             messages: List of message dicts with 'role' and 'content'
@@ -57,6 +58,7 @@ class OpenAIService:
             temperature: Sampling temperature
             max_tokens: Maximum tokens to generate
             tools: List of available tools/functions
+            use_fallback: Whether to use fallback model on error
             **kwargs: Additional parameters
 
         Returns:
@@ -79,24 +81,34 @@ class OpenAIService:
             request_params["tools"] = tools
             request_params["tool_choice"] = "auto"
 
-        response = await self.client.chat.completions.create(**request_params)
+        try:
+            response = await self.client.chat.completions.create(**request_params)
+        except Exception as e:
+            # Try fallback model if enabled and not already using fallback
+            if use_fallback and model != settings.CHAT_MODEL_FALLBACK:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Primary model {model} failed, trying fallback: {e}")
+
+                request_params["model"] = settings.CHAT_MODEL_FALLBACK
+                model = settings.CHAT_MODEL_FALLBACK
+                response = await self.client.chat.completions.create(**request_params)
+            else:
+                raise e
 
         content = response.choices[0].message.content
         tokens = response.usage.total_tokens
 
         # Calculate cost based on model
-        if model == "gpt-5":
-            # GPT-5 pricing: Estimated higher than GPT-4o, ~$15.00/1M tokens average
-            cost = (tokens / 1_000_000) * 15.0
-        elif model == "gpt-4o":
+        if model == "gpt-4o":
             # GPT-4o pricing: Input: $2.50/1M, Output: $10.00/1M, Average: ~$6.25/1M
             cost = (tokens / 1_000_000) * 6.25
         elif model == "gpt-4o-mini":
             # GPT-4o-mini pricing: Input: $0.150/1M, Output: $0.600/1M, Average: $0.375/1M
             cost = (tokens / 1_000_000) * 0.375
         else:
-            # Default fallback pricing
-            cost = (tokens / 1_000_000) * 1.0
+            # Default fallback pricing (assume GPT-4o pricing)
+            cost = (tokens / 1_000_000) * 6.25
 
         result = {
             "content": content,

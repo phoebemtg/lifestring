@@ -28,7 +28,15 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_ORG_ID: str = ""
     EMBED_MODEL: str = "text-embedding-3-small"
-    CHAT_MODEL: str = "gpt-5"
+    CHAT_MODEL: str = "gpt-4o"  # Primary model
+    CHAT_MODEL_FALLBACK: str = "gpt-4o-mini"  # Fallback model for cost efficiency
+    CHAT_MODEL_PREMIUM: str = "gpt-4o"  # Premium model for complex queries
+
+    # External APIs for real-time data
+    OPENWEATHER_API_KEY: str = os.getenv("OPENWEATHER_API_KEY", "demo_key_please_replace")
+    NEWSAPI_KEY: str = os.getenv("NEWSAPI_KEY", "demo_key_please_replace")
+    SPORTS_API_KEY: str = os.getenv("SPORTS_API_KEY", "")
+    EVENTBRITE_API_KEY: str = os.getenv("EVENTBRITE_API_KEY", "")
 
     # AI Bot
     AI_BOT_USER_ID: str = "00000000-0000-0000-0000-000000000000"
@@ -41,6 +49,7 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:5173",
         "http://localhost:8081",
+        "http://localhost:8082",
         "https://life-string-main-i0124wbax-phoebe-tgs-projects.vercel.app",
         "https://life-string-main-e1hc219e3-phoebe-tgs-projects.vercel.app",
         "https://life-string-main-k719jd01l-phoebe-tgs-projects.vercel.app",
@@ -48,6 +57,8 @@ class Settings(BaseSettings):
         "https://life-string-main-git-main-phoebe-tgs-projects.vercel.app",
         "https://life-string-main-phoebe-tgs-projects.vercel.app",
         "https://life-string-main.vercel.app",
+        "https://lifestring-frontend-lbqsn06cr-phoebe-tgs-projects.vercel.app",
+        "https://lifestring-frontend-mwjxrwcep-phoebe-tgs-projects.vercel.app",  # NEW DEPLOYMENT
         "https://*.vercel.app",
         "https://lifestring.ai",
         "https://www.lifestring.ai",

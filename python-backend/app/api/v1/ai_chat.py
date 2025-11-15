@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from app.core.database import get_db
+from app.core.database import get_db, get_db_optional
 from app.core.config import settings
 from app.api.deps import get_current_user
 from app.models.user import User
@@ -17,16 +17,197 @@ from app.services.openai_service import openai_service
 from app.services.lifestring_ai_service import lifestring_ai, AIResponse
 from app.services.ai_action_handler import create_action_handler
 
+# Import web_search_service conditionally to avoid import errors
+try:
+    from app.services.web_search_service import web_search_service
+except ImportError:
+    web_search_service = None
+
 # Import realtime_service conditionally to avoid import errors
 try:
     from app.services.realtime_service import realtime_service
 except ImportError:
     realtime_service = None
 
+def convert_question_key_to_text(question_key: str) -> str:
+    """Convert question keys like 'fun-questions-0' to actual question text"""
+
+    # Fun Questions
+    fun_questions = [
+        "What's your favorite movie of all time?",
+        "What's your favorite book?",
+        "What's your favorite song?",
+        "What's your favorite food?",
+        "What's your favorite thing to do to relax?",
+        "What's your favorite color?",
+        "What's your favorite holiday?",
+        "The country you most want to visit?",
+        "Sunny or RAINY day?",
+        "Morning bird or Night Owl",
+        "favorite smell or scent?",
+        "Best memory",
+        "Best feeling in the world?",
+        "What place makes you feel the most at happy?",
+        "What's something small that always improves your day?",
+        "What's a feeling you wish you could experience more often?",
+        "What does a perfect weekend look like for you?",
+        "What's your Harry Potter House",
+        "What's your favorite city you've ever visited?",
+        "What is the superpower you would want most?"
+    ]
+
+    # Friend Preferences Questions
+    friend_preferences_questions = [
+        "What qualities do you value most in people?",
+        "Are you looking for friends nearby, long distance or both?",
+        "How important is shared interest?",
+        "What kind of humor do you appreciate most?",
+        "How important is it that friends share your values or beliefs?"
+    ]
+
+    # Goals + Ideas Questions
+    goals_ideas_questions = [
+        "What's a personal dream you are currently working toward?",
+        "What's a big life goal you want to achieve in the next 5 years?",
+        "Do your goals focus more on career, creativity, relationships, or experiences?",
+        "What's an idea you've had for a long time but never started?",
+        "What motivates you to pursue your dreams?"
+    ]
+
+    # Personal Questions
+    personal_questions = [
+        "What's something you're currently trying to improve about yourself?",
+        "What's a passion or hobby you could talk about for hours?",
+        "Who has influenced your life perspective the most?",
+        "What's one thing people often misunderstand about you?",
+        "What makes you feel truly understood by someone?"
+    ]
+
+    # Parse the question key
+    try:
+        if question_key.startswith('fun-questions-'):
+            index = int(question_key.split('-')[-1])
+            if 0 <= index < len(fun_questions):
+                return fun_questions[index]
+        elif question_key.startswith('friend-preferences-'):
+            index = int(question_key.split('-')[-1])
+            if 0 <= index < len(friend_preferences_questions):
+                return friend_preferences_questions[index]
+        elif question_key.startswith('goals-ideas-'):
+            index = int(question_key.split('-')[-1])
+            if 0 <= index < len(goals_ideas_questions):
+                return goals_ideas_questions[index]
+        elif question_key.startswith('personal-questions-'):
+            index = int(question_key.split('-')[-1])
+            if 0 <= index < len(personal_questions):
+                return personal_questions[index]
+    except (ValueError, IndexError):
+        pass
+
+    # If we can't map it, return the original key
+    return question_key
+
 router = APIRouter()
 
 # Security scheme
 security = HTTPBearer()
+
+
+async def search_real_time_events(user_message: str) -> List[Dict[str, Any]]:
+    """Search for real-time events based on user query."""
+    try:
+        # Check if user is asking about real-time events
+        real_time_keywords = [
+            'nfl games', 'nba games', 'mlb games', 'nhl games',
+            'football games', 'basketball games', 'baseball games', 'hockey games',
+            'games today', 'games tonight', 'games this week',
+            'concerts', 'shows', 'events', 'what\'s happening',
+            'sports schedule', 'game schedule'
+        ]
+
+        message_lower = user_message.lower()
+        is_real_time_query = any(keyword in message_lower for keyword in real_time_keywords)
+
+        if not is_real_time_query:
+            return []
+
+        # Extract location if mentioned
+        location = None
+        location_keywords = ['in ', 'at ', 'near ']
+        for keyword in location_keywords:
+            if keyword in message_lower:
+                parts = message_lower.split(keyword)
+                if len(parts) > 1:
+                    # Extract potential location (next few words)
+                    location_part = parts[1].split()[:3]  # Take up to 3 words
+                    location = ' '.join(location_part).strip()
+                    break
+
+        # Search for events using real-time service
+        events = []
+
+        # Determine sport type from message
+        sport_type = None
+        if 'nfl' in message_lower or 'football' in message_lower:
+            sport_type = 'nfl'
+        elif 'nba' in message_lower or 'basketball' in message_lower:
+            sport_type = 'nba'
+        elif 'mlb' in message_lower or 'baseball' in message_lower:
+            sport_type = 'mlb'
+        elif 'nhl' in message_lower or 'hockey' in message_lower:
+            sport_type = 'nhl'
+
+        # Use real-time service to get actual sports events
+        if sport_type or any(keyword in message_lower for keyword in ['games', 'sports', 'schedule']):
+            from app.services.realtime_service import realtime_service
+            try:
+                sports_events = await realtime_service.get_sports_events(sport_type, limit=5)
+                events.extend(sports_events)
+            except Exception as e:
+                print(f"Error fetching sports events: {e}")
+                # Fallback to generic sports info
+                events = [{
+                    'title': 'Sports Schedule',
+                    'description': 'For current sports schedules, check ESPN.com, the official league apps, or your local sports channels.',
+                    'location': 'Various locations',
+                    'url': 'https://espn.com',
+                    'date': '2025-11-14T00:00:00',
+                    'event_type': 'sports_info',
+                    'source': 'ESPN'
+                }]
+
+        # Convert to join-like format for consistency
+        joins = []
+        for event in events:
+            joins.append({
+                'id': f"event_{hash(event.get('title', ''))}",
+                'title': event.get('title', ''),
+                'description': event.get('description', ''),
+                'location': event.get('location', ''),
+                'max_participants': None,
+                'current_participants': None,
+                'difficulty': None,
+                'tags': [event.get('event_type', 'event')],
+                'is_joined': False,
+                'match_score': 95,  # High relevance for real-time events
+                'created_at': event.get('date', ''),
+                'user': {
+                    'id': 'system',
+                    'name': event.get('source', 'Event Source'),
+                    'avatar': None,
+                    'email': None
+                },
+                'url': event.get('url', ''),
+                'event_type': 'real_time_event'
+            })
+
+        return joins
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error searching real-time events: {str(e)}")
+        return []
 
 
 def extract_joins_from_response(response_text: str, user_message: str) -> List[Dict[str, Any]]:
@@ -578,9 +759,11 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
             # Add profile questions to context
             if profile_questions:
                 profile_context.append("Profile Questions & Answers:")
-                for question, answer in profile_questions.items():
+                for question_key, answer in profile_questions.items():
                     if answer and str(answer).strip():  # Only include non-empty answers
-                        profile_context.append(f"  Q: {question}")
+                        # Convert question key to actual question text
+                        actual_question = convert_question_key_to_text(question_key)
+                        profile_context.append(f"  Q: {actual_question}")
                         profile_context.append(f"  A: {answer}")
 
             # Always include the user's name in the system prompt
@@ -592,9 +775,21 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
 
             # Prepare messages for OpenAI
             messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": request.message}
+                {"role": "system", "content": system_prompt}
             ]
+
+            # Add conversation history if provided
+            conversation_history = request.context.get('conversation_history', [])
+            if conversation_history:
+                logger.info(f"Adding conversation history: {len(conversation_history)} messages")
+                for msg in conversation_history:
+                    if msg.get('type') == 'user':
+                        messages.append({"role": "user", "content": msg.get('content', '')})
+                    elif msg.get('type') == 'ai':
+                        messages.append({"role": "assistant", "content": msg.get('content', '')})
+
+            # Add current message
+            messages.append({"role": "user", "content": request.message})
 
             # Get available real-time functions
             tools = realtime_service.get_available_functions() if realtime_service else None
@@ -649,6 +844,12 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
                 # Extract joins from the response
                 joins = extract_joins_from_response(final_response["content"], request.message)
 
+                # Search for real-time events if user is asking about them
+                real_time_events = await search_real_time_events(request.message)
+                if real_time_events:
+                    joins.extend(real_time_events)
+                    logger.info(f"Added {len(real_time_events)} real-time events to response")
+
                 return SimpleChatResponse(
                     message=final_response["content"],
                     intent="general_chat",
@@ -658,6 +859,12 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
 
             # Extract joins from the response
             joins = extract_joins_from_response(response["content"], request.message)
+
+            # Search for real-time events if user is asking about them
+            real_time_events = await search_real_time_events(request.message)
+            if real_time_events:
+                joins.extend(real_time_events)
+                logger.info(f"Added {len(real_time_events)} real-time events to response")
 
             return SimpleChatResponse(
                 message=response["content"],
@@ -731,7 +938,7 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
         # Get AI response with function calling capability
         response = await openai_service.chat_completion(
             messages=messages,
-            model="gpt-5",
+            model=settings.CHAT_MODEL,
             temperature=0.7,
             max_tokens=500,
             tools=tools if tools else None
@@ -779,6 +986,12 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
             # Extract joins from the response
             joins = extract_joins_from_response(final_response["content"], request.message)
 
+            # Search for real-time events if user is asking about them
+            real_time_events = await search_real_time_events(request.message)
+            if real_time_events:
+                joins.extend(real_time_events)
+                logger.info(f"Added {len(real_time_events)} real-time events to response")
+
             return SimpleChatResponse(
                 message=final_response["content"],
                 intent="general_chat",
@@ -790,6 +1003,12 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
 
         # Extract joins from the response
         joins = extract_joins_from_response(response["content"], request.message)
+
+        # Search for real-time events if user is asking about them
+        real_time_events = await search_real_time_events(request.message)
+        if real_time_events:
+            joins.extend(real_time_events)
+            logger.info(f"Added {len(real_time_events)} real-time events to response")
 
         return SimpleChatResponse(
             message=response["content"],
@@ -929,44 +1148,30 @@ async def lifestring_ai_chat_test(request: EnhancedChatRequest):
             print(f"Using profile data from request.context: {profile_data}")
 
         if not profile_data:
-            # Fetch user profile data from Supabase REST API
-            import httpx
-            try:
-                async with httpx.AsyncClient() as client:
-                    # Try detailed_profiles first (where the frontend actually saves data)
-                    headers = {
-                        "apikey": settings.SUPABASE_ANON_KEY,
-                        "Content-Type": "application/json"
-                    }
+            # Use centralized profile service
+            from app.services.profile_service import profile_service
+            profile_data = await profile_service.get_user_profile(user_id)
 
-                    response = await client.get(
-                        f"{settings.SUPABASE_URL}/rest/v1/detailed_profiles?user_id=eq.{user_id}",
-                        headers=headers
-                    )
-                    if response.status_code == 200:
-                        detailed_profiles = response.json()
-                        if detailed_profiles:
-                            detailed_profile = detailed_profiles[0]
-                            profile_data = {
-                                "bio": detailed_profile.get('bio', ''),
-                                "interests": detailed_profile.get('interests', []) or [],
-                                "passions": detailed_profile.get('passions', []) or [],
-                                "hobbies": detailed_profile.get('hobbies', []) or [],
-                                "skills": detailed_profile.get('skills', []) or [],
-                                "contact_info": {"name": detailed_profile.get('name', detailed_profile.get('full_name', 'Phoebe'))}
-                            }
-                            print(f"Loaded profile from detailed_profiles: {profile_data}")
-            except Exception as e:
-                print(f"Error fetching profile: {e}")
-                # Fallback to test data
-                profile_data = {
-                    "bio": "I love climbing",
-                    "interests": ["climbing"],
-                    "passions": ["climbing", "hiking", "photography"],
-                    "hobbies": ["camping", "hiking", "rock climbing", "photography"],
-                    "skills": [],
-                    "contact_info": {"name": "Phoebe"}
-                }
+            if not profile_data:
+                # Fallback to test data for known user
+                if user_id == "a90f0ea5-ba98-44f5-a3a7-a922db9e1523":
+                    profile_data = {
+                        "bio": "I love climbing",
+                        "interests": ["climbing"],
+                        "passions": ["climbing", "hiking", "photography"],
+                        "hobbies": ["camping", "hiking", "rock climbing", "photography"],
+                        "skills": [],
+                        "contact_info": {"name": "Phoebe"}
+                    }
+                else:
+                    profile_data = {
+                        "bio": "",
+                        "interests": [],
+                        "passions": [],
+                        "hobbies": [],
+                        "skills": [],
+                        "contact_info": {"name": "User"}
+                    }
 
         # Handle profile-specific queries
         message_lower = request.message.lower()
@@ -1086,7 +1291,7 @@ IMPORTANT: Never mention external platforms like Meetup, Facebook, Instagram, or
         client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
         response = client.chat.completions.create(
-            model="gpt-5",
+            model=settings.CHAT_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": request.message}
@@ -1126,7 +1331,8 @@ IMPORTANT: Never mention external platforms like Meetup, Facebook, Instagram, or
 @router.post("/ai/lifestring-chat", response_model=EnhancedChatResponse)
 async def lifestring_ai_chat(
     request: EnhancedChatRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db_optional)
 ):
     """
     Enhanced AI chat with Lifestring-specific features.
@@ -1138,6 +1344,62 @@ async def lifestring_ai_chat(
         token = credentials.credentials
         user_id = get_user_id_from_token(token)
 
+        # Get current user
+        current_user = db.query(User).filter(User.user_id == user_id).first()
+        if not current_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        # Find or create AI chat room for this user
+        ai_room = db.query(Room).join(RoomParticipant).filter(
+            RoomParticipant.user_id == user_id,
+            Room.room_metadata['type'].astext == 'ai_chat'
+        ).first()
+
+        if not ai_room:
+            # Create new AI chat room
+            ai_room = Room(
+                name=f"AI Chat - {current_user.contact_info.get('name', 'User') if current_user.contact_info else 'User'}",
+                room_metadata={
+                    "type": "ai_chat",
+                    "model": settings.CHAT_MODEL,
+                    "created_by": str(user_id)
+                }
+            )
+            db.add(ai_room)
+            db.flush()
+
+            # Add user as participant
+            user_participant = RoomParticipant(
+                room_id=ai_room.id,
+                user_id=user_id
+            )
+            db.add(user_participant)
+
+            # Add AI bot as participant
+            ai_participant = RoomParticipant(
+                room_id=ai_room.id,
+                user_id=settings.AI_BOT_USER_ID
+            )
+            db.add(ai_participant)
+            db.commit()
+
+        # Save user message to conversation history
+        user_message = Message(
+            room_id=ai_room.id,
+            user_id=user_id,
+            content=request.message
+        )
+        db.add(user_message)
+        db.commit()
+
+        # Get conversation history for context
+        history = db.query(Message).filter(
+            Message.room_id == ai_room.id
+        ).order_by(Message.created_at).limit(20).all()
+
         # Use profile data from request if provided (either directly or in context), otherwise fetch from database
         profile_data = None
         if hasattr(request, 'profile_data') and request.profile_data:
@@ -1148,67 +1410,29 @@ async def lifestring_ai_chat(
             print(f"Using profile data from request.context: {profile_data}")
 
         if not profile_data:
-            # Fetch user profile data from Supabase REST API
-            import httpx
-        try:
-            async with httpx.AsyncClient() as client:
-                # Try detailed_profiles first (where the frontend actually saves data)
-                # Use both anon key and user JWT token for RLS policies
-                headers = {
-                    "apikey": settings.SUPABASE_ANON_KEY,
-                    "Content-Type": "application/json"
-                }
-                # Add user JWT token if available for RLS policies
-                if token:
-                    headers["Authorization"] = f"Bearer {token}"
+            # Use centralized profile service with JWT token for RLS policies
+            from app.services.profile_service import profile_service
+            profile_data = await profile_service.get_user_profile(user_id, token)
 
-                response = await client.get(
-                    f"{settings.SUPABASE_URL}/rest/v1/detailed_profiles?user_id=eq.{user_id}",
-                    headers=headers
-                )
-                if response.status_code == 200:
-                    detailed_profiles = response.json()
-                    if detailed_profiles:
-                        detailed_profile = detailed_profiles[0]
-                        profile_data = {
-                            "bio": detailed_profile.get('bio', ''),
-                            "interests": detailed_profile.get('interests', []) or [],
-                            "passions": detailed_profile.get('passions', []) or [],
-                            "hobbies": detailed_profile.get('hobbies', []) or [],
-                            "contact_info": {"name": detailed_profile.get('name', detailed_profile.get('full_name', 'User'))}
-                        }
-                        print(f"Loaded profile from detailed_profiles: {profile_data}")
-
-                # If no detailed_profiles data, try user_profiles as fallback
-                if not profile_data:
-                    response = await client.get(
-                        f"{settings.SUPABASE_URL}/rest/v1/user_profiles?user_id=eq.{user_id}",
-                        headers=headers
-                    )
-                    if response.status_code == 200:
-                        user_profiles = response.json()
-                        if user_profiles:
-                            user_profile = user_profiles[0]
-                            # Map user_profiles structure to our expected format
-                            profile_data = {
-                                "bio": user_profile.get('biography', {}).get('bio', ''),
-                                "interests": user_profile.get('attributes', {}).get('interests', []),
-                                "passions": user_profile.get('attributes', {}).get('passions', []),
-                                "hobbies": user_profile.get('attributes', {}).get('hobbies', []),
-                                "contact_info": user_profile.get('contact_info', {})
-                            }
-                            print(f"Loaded profile from user_profiles: {profile_data}")
-        except Exception as e:
-            print(f"Error fetching profile: {e}")
-            # Fallback to known data for this user
-            if user_id == "a90f0ea5-ba98-44f5-a3a7-a922db9e1523":
-                profile_data = {
-                    "bio": "I love climbing",
-                    "interests": ["climbing"],
-                    "passions": ["climbing"],
-                    "hobbies": ["camping", "hiking", "rock climbing", "photography"],
-                    "contact_info": {"name": "Phoebe Troup-Galligan"}
-                }
+            if not profile_data:
+                # Fallback to known data for this user
+                if user_id == "a90f0ea5-ba98-44f5-a3a7-a922db9e1523":
+                    profile_data = {
+                        "bio": "I love climbing",
+                        "interests": ["climbing"],
+                        "passions": ["climbing"],
+                        "hobbies": ["camping", "hiking", "rock climbing", "photography"],
+                        "contact_info": {"name": "Phoebe Troup-Galligan"}
+                    }
+                else:
+                    profile_data = {
+                        "bio": "",
+                        "interests": [],
+                        "passions": [],
+                        "hobbies": [],
+                        "skills": [],
+                        "contact_info": {"name": "User"}
+                    }
 
         # Handle simple utility queries first
         message_lower = request.message.lower()
@@ -1413,9 +1637,11 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
             # Add profile questions to context
             if profile_questions:
                 profile_context.append("Profile Questions & Answers:")
-                for question, answer in profile_questions.items():
+                for question_key, answer in profile_questions.items():
                     if answer and str(answer).strip():  # Only include non-empty answers
-                        profile_context.append(f"  Q: {question}")
+                        # Convert question key to actual question text
+                        actual_question = convert_question_key_to_text(question_key)
+                        profile_context.append(f"  Q: {actual_question}")
                         profile_context.append(f"  A: {answer}")
 
             # Always include the user's name in the system prompt
@@ -1428,10 +1654,15 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
             system_prompt += "\n\nBe friendly and helpful. If the user mentions interests, encourage them to add them to their profile for more personalized suggestions."
 
         # Use enhanced OpenAI service with real-time capabilities
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": request.message}
-        ]
+        messages = [{"role": "system", "content": system_prompt}]
+
+        # Add conversation history (excluding the current message we just saved)
+        for msg in history[:-1]:  # Exclude the last message (current user message)
+            role = "assistant" if str(msg.user_id) == settings.AI_BOT_USER_ID else "user"
+            messages.append({"role": role, "content": msg.content})
+
+        # Add current user message
+        messages.append({"role": "user", "content": request.message})
 
         # Get available real-time functions
         tools = realtime_service.get_available_functions() if realtime_service else None
@@ -1441,7 +1672,7 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
         response = await openai_service.chat_completion(
             messages=messages,
             tools=tools,
-            model="gpt-5",
+            model=settings.CHAT_MODEL,
             max_tokens=500,
             temperature=0.7
         )
@@ -1489,6 +1720,24 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
         else:
             ai_response = response["content"]
 
+        # Save AI response to conversation history
+        ai_message = Message(
+            room_id=ai_room.id,
+            user_id=settings.AI_BOT_USER_ID,
+            content=ai_response
+        )
+        db.add(ai_message)
+        db.commit()
+
+        # Update conversation memory with user preferences (async, don't block response)
+        # Skip if database is not available
+        try:
+            if db:  # Only try if we have a valid database session
+                from app.services.conversation_memory_service import conversation_memory_service
+                await conversation_memory_service.update_user_memory(db, user_id, str(ai_room.id), profile_data or {})
+        except Exception as e:
+            print(f"Error updating conversation memory (non-critical): {e}")
+
         return EnhancedChatResponse(
             message=ai_response,
             intent="general_chat",
@@ -1506,7 +1755,43 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
         raise
     except Exception as e:
         print(f"Error in lifestring_ai_chat: {e}")
-        # Fallback to public endpoint
+
+        # If it's a database connection error, try to fall back to public endpoint functionality
+        if "connection" in str(e).lower() or "database" in str(e).lower():
+            try:
+                # Try to use the public endpoint logic as fallback
+                from app.services.lifestring_ai_service import lifestring_ai_service
+
+                # Create a simple request object for the public endpoint
+                public_request = PublicChatRequest(
+                    message=request.message,
+                    user_name=profile_data.get('contact_info', {}).get('name', 'User') if profile_data else 'User',
+                    context=request.context
+                )
+
+                # Use the public AI service
+                response = await lifestring_ai_service.chat(
+                    message=public_request.message,
+                    user_name=public_request.user_name,
+                    context=public_request.context
+                )
+
+                return EnhancedChatResponse(
+                    message=response["message"],
+                    intent=response.get("intent", "general_chat"),
+                    confidence=response.get("confidence", 0.9),
+                    actions=[],
+                    suggested_strings=[],
+                    suggested_connections=[],
+                    suggested_joins=[],
+                    tokens=response.get("tokens", 0),
+                    cost=response.get("cost", 0.0)
+                )
+
+            except Exception as fallback_error:
+                print(f"Fallback also failed: {fallback_error}")
+
+        # Final fallback
         return EnhancedChatResponse(
             message="I'm having trouble connecting right now. Please try again in a moment.",
             intent="error",
@@ -1645,6 +1930,16 @@ def build_system_prompt(user: User, context: Dict[str, Any]) -> str:
 
         if profile.get('dreams'):
             prompt_parts.append(f"Their dreams: {profile['dreams']}")
+
+        # Add conversation memory if available
+        if profile.get('conversation_memory'):
+            memory = profile['conversation_memory']
+            if memory.get('favorite_activities'):
+                prompt_parts.append(f"From past conversations, they've mentioned enjoying: {', '.join(memory['favorite_activities'])}.")
+            if memory.get('goals'):
+                prompt_parts.append(f"They've expressed goals to: {', '.join(memory['goals'])}.")
+            if memory.get('personality_traits'):
+                prompt_parts.append(f"Personality insights from conversations: {', '.join(memory['personality_traits'])}.")
     else:
         # Fallback to basic user data
         if hasattr(user, 'interests') and user.interests:
@@ -1653,8 +1948,17 @@ def build_system_prompt(user: User, context: Dict[str, Any]) -> str:
         if hasattr(user, 'passions') and user.passions:
             prompt_parts.append(f"Their passions include: {', '.join(user.passions)}.")
 
+        # Check for conversation memory in user meta
+        if hasattr(user, 'meta') and user.meta and user.meta.get('conversation_memory'):
+            memory = user.meta['conversation_memory']
+            if memory.get('favorite_activities'):
+                prompt_parts.append(f"From past conversations, they've mentioned enjoying: {', '.join(memory['favorite_activities'])}.")
+
     prompt_parts.append("Use this information to provide personalized, relevant responses and recommendations based on their location, age, interests, and the current time.")
-    prompt_parts.append("When asked about time, provide the current time. When making recommendations, consider their location and age.")
+    prompt_parts.append("When asked about time, provide the current time shown above. When making recommendations, consider their location and age.")
+    prompt_parts.append("IMPORTANT: Never make up information you don't know. If you don't have specific information about events, schedules, or facts, say so clearly.")
+    prompt_parts.append("NEVER answer with random times when confused - only provide the current time when specifically asked about time.")
+    prompt_parts.append("If asked about your favorite movie or personal preferences, explain that you're an AI and don't have personal preferences, but you can help them explore their interests.")
     prompt_parts.append("Be friendly, helpful, and concise.")
 
     return " ".join(prompt_parts)

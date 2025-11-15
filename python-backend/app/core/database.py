@@ -27,7 +27,7 @@ Base = declarative_base()
 def get_db() -> Generator[Session, None, None]:
     """
     Dependency to get database session.
-    
+
     Usage:
         @app.get("/users")
         def get_users(db: Session = Depends(get_db)):
@@ -36,9 +36,35 @@ def get_db() -> Generator[Session, None, None]:
     """
     db = SessionLocal()
     try:
+        # Test the connection before yielding
+        db.execute("SELECT 1")
         yield db
-    finally:
+    except Exception as e:
+        print(f"Database connection failed: {e}")
         db.close()
+        # Yield None to indicate database is not available
+        yield None
+    finally:
+        if db:
+            db.close()
+
+
+def get_db_optional() -> Generator[Session, None, None]:
+    """
+    Optional database dependency that doesn't fail if database is unavailable.
+    Returns None if database connection fails.
+    """
+    try:
+        db = SessionLocal()
+        # Test the connection
+        db.execute("SELECT 1")
+        yield db
+    except Exception as e:
+        print(f"Database connection failed (optional): {e}")
+        yield None
+    finally:
+        if 'db' in locals() and db:
+            db.close()
 
 
 def init_db() -> None:

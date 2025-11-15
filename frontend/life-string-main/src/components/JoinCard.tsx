@@ -22,6 +22,8 @@ interface JoinCardProps {
       name?: string;
       avatar?: string;
     };
+    url?: string;
+    event_type?: string;
   };
   onJoin?: (joinId: string) => void;
   onViewDetails?: (joinId: string) => void;
@@ -80,11 +82,22 @@ const JoinCard: React.FC<JoinCardProps> = ({
     ? `${join.current_participants || 1}/${join.max_participants}`
     : `${join.current_participants || 1} joined`;
 
+  // Handle click for real-time events vs regular joins
+  const handleCardClick = () => {
+    if (join.event_type === 'real_time_event' && join.url) {
+      // Open external URL for real-time events
+      window.open(join.url, '_blank');
+    } else {
+      // Use regular view details for local joins
+      onViewDetails?.(join.id);
+    }
+  };
+
   // Compact version for chat messages
   if (compact) {
     return (
       <Card className={`w-full max-w-sm hover:shadow-md transition-shadow duration-200 cursor-pointer ${className}`}
-            onClick={() => onViewDetails?.(join.id)}>
+            onClick={handleCardClick}>
         <CardContent className="p-3">
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1">
@@ -157,12 +170,16 @@ const JoinCard: React.FC<JoinCardProps> = ({
             <Button
               onClick={(e) => {
                 e.stopPropagation();
-                onViewDetails?.(join.id);
+                if (join.event_type === 'real_time_event' && join.url) {
+                  window.open(join.url, '_blank');
+                } else {
+                  onViewDetails?.(join.id);
+                }
               }}
               size="sm"
               className="text-xs px-2 py-1 h-6 bg-blue-600 hover:bg-blue-700 text-white"
             >
-              View Details
+              {join.event_type === 'real_time_event' ? 'View Event' : 'View Details'}
             </Button>
           </div>
         </CardContent>
@@ -172,9 +189,9 @@ const JoinCard: React.FC<JoinCardProps> = ({
 
   // Full version for regular display
   return (
-    <Card 
+    <Card
       className={`border-0 bg-white hover:shadow-md transition-all duration-200 cursor-pointer group ${className}`}
-      onClick={() => onViewDetails?.(join.id)}
+      onClick={handleCardClick}
     >
       <CardContent className="p-6">
         <div className="space-y-4">

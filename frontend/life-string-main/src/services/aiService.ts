@@ -50,6 +50,13 @@ class AIService {
       if (response.ok) {
         const data = await response.json();
         console.log('✅ API response data:', data);
+
+        // Check if the response is the generic error message
+        if (data.message === "I'm having trouble connecting right now. Please try again in a moment.") {
+          console.warn('⚠️ Backend returned generic error message, treating as API failure');
+          throw new Error('Backend is experiencing connection issues');
+        }
+
         return {
           message: data.message,
           intent: data.intent || 'general_chat',
@@ -70,8 +77,26 @@ class AIService {
         stack: error.stack
       });
 
-      // Instead of fallback, throw the error so we can see what's happening
-      throw error;
+      // Provide a more helpful error message based on the error type
+      let fallbackMessage = "I'm currently experiencing technical difficulties. ";
+
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        fallbackMessage += "Please check your internet connection and try again.";
+      } else if (error.message.includes('connection issues') || error.message.includes('500')) {
+        fallbackMessage += "The AI service is temporarily unavailable. Please try again in a few minutes.";
+      } else if (error.message.includes('403') || error.message.includes('401')) {
+        fallbackMessage += "There's an authentication issue. Please try refreshing the page.";
+      } else {
+        fallbackMessage += "Please try again in a moment.";
+      }
+
+      return {
+        message: fallbackMessage,
+        intent: 'error',
+        confidence: 1.0,
+        actions: [],
+        suggestions: []
+      };
     }
   }
 

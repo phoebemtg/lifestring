@@ -20,6 +20,8 @@ interface JoinData {
     avatar?: string;
     email?: string;
   };
+  url?: string;
+  event_type?: string;
 }
 
 interface GroupChatData {
@@ -57,18 +59,18 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     <div className={`flex ${type === 'user' ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-[80%] ${
         type === 'user'
-          ? '!text-black rounded-2xl shadow-sm p-4'
+          ? '!text-black rounded-2xl shadow-sm px-3 py-2'
           : '!text-black bg-transparent border-l-4 border-gray-200 pl-4 ml-2'
       }`}
       style={type === 'user' ? { backgroundColor: selectedOrbColor } : {}}
       >
         {/* Text content */}
         {content && (
-          <p className="text-sm whitespace-pre-wrap leading-relaxed !text-black mb-3">
+          <p className="text-sm whitespace-pre-wrap leading-relaxed !text-black">
             {content}
           </p>
         )}
-        
+
         {/* Join cards */}
         {joins && joins.length > 0 && (
           <div className="space-y-2">

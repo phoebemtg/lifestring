@@ -85,6 +85,7 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
   const [inputValue, setInputValue] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isInChatMode, setIsInChatMode] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [userName, setUserName] = useState<string>('User');
@@ -103,7 +104,9 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
   const { user } = useAuth();
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Function to save conversation to database
+  // Removed conversation persistence functions to fix glitchy behavior
+
+  // Function to save conversation to database (placeholder for future implementation)
   const saveConversationToDatabase = async (conversationId: string, content: string) => {
     if (!user) return; // Only save if user is authenticated
 
@@ -111,8 +114,8 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      // Note: Conversations with Strings (AI) are not saved to database
-      // They are ephemeral chat sessions
+      // TODO: Implement database persistence when rooms/messages tables are properly configured
+      // For now, we use localStorage
     } catch (error) {
       console.error('Error saving conversation to database:', error);
     }
@@ -234,6 +237,9 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
             if (profileData.attributes && profileData.attributes.profile_questions) {
               profileQuestions = profileData.attributes.profile_questions;
               console.log('✅ Profile questions found:', Object.keys(profileQuestions).length, 'answers');
+              console.log('🔍 ACTUAL PROFILE QUESTIONS:', profileQuestions);
+            } else {
+              console.log('❌ No profile questions found in user_profiles.attributes');
             }
           }
 
@@ -290,6 +296,11 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
 
           if (data && !error) {
             // Combine detailed_profiles data with user_profiles.attributes data
+            console.log('🔍 BEFORE ENHANCED PROFILE CREATION:', {
+              profileQuestions_keys: Object.keys(profileQuestions).length,
+              profileQuestions_content: profileQuestions
+            });
+
             // ALWAYS use detailed_profiles data as primary source
             const enhancedProfile = {
               ...data,
@@ -317,7 +328,9 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
               interests: enhancedProfile.interests.length,
               passions: enhancedProfile.passions.length,
               hobbies: enhancedProfile.hobbies.length,
-              skills: enhancedProfile.skills.length
+              skills: enhancedProfile.skills.length,
+              profile_questions_count: Object.keys(enhancedProfile.profile_questions || {}).length,
+              profile_questions_sample: enhancedProfile.profile_questions
             });
             setUserProfile(enhancedProfile);
             setDetailedProfile(enhancedProfile);
@@ -351,6 +364,26 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
     };
 
     fetchUserProfile();
+  }, [user]);
+
+  // Clear chat messages when user logs out but preserve recent strings
+  useEffect(() => {
+    if (!user) {
+      setChatMessages([]);
+      setIsInChatMode(false);
+      setCurrentConversationId(null);
+    } else {
+      // Clean up any old localStorage conversation data that might be causing issues
+      // BUT preserve recentStrings data
+      try {
+        const storageKey = `ai_chat_${user.id}`;
+        localStorage.removeItem(storageKey);
+        // Note: We intentionally do NOT remove 'recentStrings' from localStorage
+        // as those should persist across login/logout sessions
+      } catch (error) {
+        // Ignore localStorage errors
+      }
+    }
   }, [user]);
 
   // Auto-scroll to bottom when new messages are added
@@ -487,7 +520,6 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
   const handleSubmitWithMessage = async (message: string) => {
     if (!message.trim()) return;
 
-    setInputValue('');
     setIsLoading(true);
 
     // If this is the first message in a new conversation, reset conversation ID
@@ -510,8 +542,17 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
   };
 
   const handleSubmit = async () => {
-    if (!inputValue.trim()) return;
-    await handleSubmitWithMessage(inputValue.trim());
+    if (!inputValue.trim() || isLoading || isSubmitting) return; // Prevent double submission
+
+    setIsSubmitting(true);
+    const messageToSend = inputValue.trim();
+    setInputValue(''); // Clear input immediately to prevent double submission
+
+    try {
+      await handleSubmitWithMessage(messageToSend);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const processMessage = async (userMessage: string) => {
@@ -557,6 +598,8 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
             console.log('Sending AI request with enhanced context:', {
               user_profile: userProfile ? 'loaded' : 'null',
               detailed_profile: detailedProfile ? 'loaded' : 'null',
+              conversation_history_length: chatMessages.slice(-5).length,
+              conversation_history: chatMessages.slice(-5),
               context_being_sent: {
                 user_profile_name: context.user_profile?.name,
                 detailed_profile_name: context.detailed_profile?.name,
@@ -582,6 +625,13 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
             });
 
             // Prepare profile data for the authenticated endpoint
+            console.log('🔍 PROFILE DATA CONSTRUCTION DEBUG:', {
+              detailedProfile_has_profile_questions: !!detailedProfile?.profile_questions,
+              userProfile_has_profile_questions: !!userProfile?.profile_questions,
+              detailedProfile_profile_questions: detailedProfile?.profile_questions,
+              userProfile_profile_questions: userProfile?.profile_questions
+            });
+
             const profileData = {
               name: userName || 'User',
               contact_info: {
@@ -601,8 +651,11 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
 
             console.log('🔍 DEBUG: Profile data being sent to backend:', {
               ...profileData,
-              profile_questions_count: Object.keys(profileData.profile_questions).length
+              profile_questions_count: Object.keys(profileData.profile_questions || {}).length,
+              profile_questions_actual: profileData.profile_questions
             });
+
+            console.log('🔍 PROFILE QUESTIONS FINAL CHECK:', profileData.profile_questions);
 
             // Call authenticated endpoint directly with proper headers
             const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://lifestring-api-6946562411.us-central1.run.app';
@@ -719,7 +772,14 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
           birthday: detailedProfile?.birthday || userProfile?.birthday || null
         };
 
-        console.log('🔄 FALLBACK: Using public endpoint with profile data:', profileData);
+        console.log('🔄 FALLBACK: Using public endpoint with profile data:', {
+          ...profileData,
+          profile_questions_actual: profileData.profile_questions,
+          conversation_history_length: chatMessages.slice(-5).length,
+          conversation_history: chatMessages.slice(-5)
+        });
+
+        console.log('🔍 FALLBACK PROFILE QUESTIONS FINAL CHECK:', profileData.profile_questions);
         console.log('🎯 userName value being sent:', userName);
         console.log('🎯 userProfile?.name value:', userProfile?.name);
         console.log('🎯 FINAL PROFILE DATA NAME:', profileData.name);
@@ -727,12 +787,15 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
         const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://lifestring-api-6946562411.us-central1.run.app';
         console.log('🚀 GPT-5 Backend URL:', backendUrl);
 
+        console.log('🚨 FALLBACK API CALL - CONVERSATION HISTORY:', chatMessages.slice(-5));
         const fallbackResponse = await fetch(`${backendUrl}/api/ai/lifestring-chat-public`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: userMessage,
-            context: {},
+            context: {
+              conversation_history: chatMessages.slice(-5) // Include conversation history in fallback
+            },
             profile_data: profileData  // Add profile data to public endpoint
           })
         });
@@ -971,9 +1034,9 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="flex flex-col overflow-hidden">
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col px-4 pt-8">
+      <div className="flex flex-col px-4 pt-8 overflow-hidden">
 
         {!isInChatMode ? (
           /* Initial Mode Layout - Smaller Centered Design */
@@ -1073,11 +1136,11 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
 
           </div>
         ) : (
-          /* Chat Mode Layout - Scrollable with Fixed Input */
-          <div className="flex flex-col h-screen">
+          /* Chat Mode Layout - Proper flex layout with visible input */
+          <div className="flex flex-col h-full">
             {/* Top Section with Action Buttons */}
-            <div className="w-full max-w-4xl ml-8 flex-shrink-0">
-              <div className="flex justify-between items-center mb-4">
+            <div className="flex-shrink-0 px-8 py-4">
+              <div className="flex justify-between items-center">
                 <Button
                   onClick={handleCreateJoin}
                   variant="outline"
@@ -1101,11 +1164,11 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
               </div>
             </div>
 
-            {/* Scrollable Messages Area */}
-            <div className="flex-1 w-full max-w-4xl ml-8 overflow-hidden flex flex-col">
+            {/* Messages Area - Fixed height, scrollable */}
+            <div className="px-8 overflow-hidden flex flex-col">
               <div
                 ref={chatContainerRef}
-                className="flex-1 space-y-4 overflow-y-auto pr-4"
+                className="h-[400px] space-y-4 overflow-y-auto pr-4"
               >
                 {chatMessages.map((message, index) => (
                   <ChatMessage
@@ -1131,74 +1194,75 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
 
               </div>
 
-              {/* Fixed Input Section at Bottom */}
-              <div className="flex-shrink-0 mt-4 border-t border-gray-100 pt-4">
-                {/* File Upload Preview */}
-                {selectedFiles.length > 0 && (
-                  <div className="mb-3">
-                    <div className="flex flex-wrap gap-2">
-                      {selectedFiles.map((file, index) => (
-                        <div key={index} className="flex items-center bg-gray-50 rounded-lg px-3 py-2 text-sm">
-                          {file.type.startsWith('image/') ? (
-                            <Image className="h-4 w-4 mr-2 text-blue-500" />
-                          ) : (
-                            <FileText className="h-4 w-4 mr-2 text-green-500" />
-                          )}
-                          <span className="truncate max-w-[150px]">{file.name}</span>
-                          <button
-                            onClick={() => removeFile(index)}
-                            className="ml-2 text-gray-400 hover:text-red-500"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+            </div>
 
-                {/* Input Box - Same Style as Home Page */}
-                <div className="relative bg-white rounded-full border border-gray-200 shadow-sm mb-6 px-4 py-3 flex items-center space-x-3">
-                  <Input
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    placeholder="Continue the conversation..."
-                    className="border-0 focus-visible:ring-0 text-base bg-white flex-1 !text-black"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSubmit();
-                      }
-                    }}
-                  />
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={triggerFileSelect}
-                      className="text-gray-400 hover:text-gray-600 p-2 h-8 w-8"
-                    >
-                      <Paperclip className="h-4 w-4" />
-                    </Button>
-
-                    <Button
-                      onClick={handleSubmit}
-                      disabled={(!inputValue.trim() && selectedFiles.length === 0) || isLoading}
-                      className="rounded-full h-8 w-8 p-0 flex items-center justify-center text-black border border-gray-300"
-                      style={{ backgroundColor: selectedOrbColor }}
-                    >
-                      <ArrowUp className="h-4 w-4" />
-                    </Button>
+            {/* Input Section - Fixed at bottom with proper spacing */}
+            <div className="flex-shrink-0 mt-4 pt-4 px-8">
+              {/* File Upload Preview */}
+              {selectedFiles.length > 0 && (
+                <div className="mb-3">
+                  <div className="flex flex-wrap gap-2">
+                    {selectedFiles.map((file, index) => (
+                      <div key={index} className="flex items-center bg-gray-50 rounded-lg px-3 py-2 text-sm">
+                        {file.type.startsWith('image/') ? (
+                          <Image className="h-4 w-4 mr-2 text-blue-500" />
+                        ) : (
+                          <FileText className="h-4 w-4 mr-2 text-green-500" />
+                        )}
+                        <span className="truncate max-w-[150px]">{file.name}</span>
+                        <button
+                          onClick={() => removeFile(index)}
+                          className="ml-2 text-gray-400 hover:text-red-500"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
+              )}
 
-                {selectedFiles.length > 0 && (
-                  <div className="mb-4 text-center text-sm text-gray-500">
-                    {selectedFiles.length} file(s) selected
-                  </div>
-                )}
+              {/* Input Box - Same Style as Home Page */}
+              <div className="relative bg-white rounded-full border border-gray-200 shadow-sm mb-6 px-4 py-3 flex items-center space-x-3">
+                <Input
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  placeholder="Continue the conversation..."
+                  className="border-0 focus-visible:ring-0 text-base bg-white flex-1 !text-black"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSubmit();
+                    }
+                  }}
+                />
+                <div className="flex items-center space-x-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={triggerFileSelect}
+                    className="text-gray-400 hover:text-gray-600 p-2 h-8 w-8"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </Button>
+
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={(!inputValue.trim() && selectedFiles.length === 0) || isLoading || isSubmitting}
+                    className="rounded-full h-8 w-8 p-0 flex items-center justify-center text-black border border-gray-300"
+                    style={{ backgroundColor: selectedOrbColor }}
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
+
+              {selectedFiles.length > 0 && (
+                <div className="mb-4 text-center text-sm text-gray-500">
+                  {selectedFiles.length} file(s) selected
+                </div>
+              )}
             </div>
           </div>
         )}
