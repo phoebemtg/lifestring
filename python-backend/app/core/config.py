@@ -32,11 +32,21 @@ class Settings(BaseSettings):
     CHAT_MODEL_FALLBACK: str = "gpt-4o-mini"  # Fallback model for cost efficiency
     CHAT_MODEL_PREMIUM: str = "gpt-4o"  # Premium model for complex queries
 
+    # Google Gemini (Alternative AI provider)
+    GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
+    GEMINI_MODEL: str = "gemini-2.5-flash"  # Fast/cheap version (Gemini 3 equivalent)
+    GEMINI_MODEL_FLASH: str = "gemini-2.5-flash"  # Fast/cheap version
+
+    # AI Model Strategy
+    USE_GEMINI_FOR_REALTIME: bool = os.getenv("USE_GEMINI_FOR_REALTIME", "true").lower() == "true"
+    USE_GEMINI_FOR_EVENTS: bool = os.getenv("USE_GEMINI_FOR_EVENTS", "true").lower() == "true"
+
     # External APIs for real-time data
     OPENWEATHER_API_KEY: str = os.getenv("OPENWEATHER_API_KEY", "demo_key_please_replace")
     NEWSAPI_KEY: str = os.getenv("NEWSAPI_KEY", "demo_key_please_replace")
     SPORTS_API_KEY: str = os.getenv("SPORTS_API_KEY", "")
     EVENTBRITE_API_KEY: str = os.getenv("EVENTBRITE_API_KEY", "")
+    TICKETMASTER_API_KEY: str = os.getenv("TICKETMASTER_API_KEY", "")
 
     # AI Bot
     AI_BOT_USER_ID: str = "00000000-0000-0000-0000-000000000000"
@@ -58,7 +68,15 @@ class Settings(BaseSettings):
         "https://life-string-main-phoebe-tgs-projects.vercel.app",
         "https://life-string-main.vercel.app",
         "https://lifestring-frontend-lbqsn06cr-phoebe-tgs-projects.vercel.app",
+        "https://lifestring-frontend-n5rpd07qh-phoebe-tgs-projects.vercel.app",
+        # Lovable domains
+        "https://lovable.dev",
+        "https://*.lovable.dev",
+        "https://lovable.app",
+        "https://*.lovable.app",
         "https://lifestring-frontend-mwjxrwcep-phoebe-tgs-projects.vercel.app",  # NEW DEPLOYMENT
+        "https://lifestring-frontend-jdv71xbn0-phoebe-tgs-projects.vercel.app",  # LATEST DEPLOYMENT
+        "https://lifestring-frontend-oibldp6dz-phoebe-tgs-projects.vercel.app",  # CURRENT DEPLOYMENT
         "https://*.vercel.app",
         "https://lifestring.ai",
         "https://www.lifestring.ai",
