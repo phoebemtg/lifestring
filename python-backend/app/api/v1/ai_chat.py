@@ -10,6 +10,9 @@ from pydantic import BaseModel
 
 from app.core.database import get_db, get_db_optional
 from app.core.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.room import Room, Message, RoomParticipant
@@ -28,6 +31,15 @@ try:
     from app.services.realtime_service import realtime_service
 except ImportError:
     realtime_service = None
+
+# Import hybrid_ai_service for intelligent model routing
+try:
+    from app.services.hybrid_ai_service import hybrid_ai_service, ModelChoice
+    print(f"SUCCESS: Imported hybrid_ai_service: {hybrid_ai_service}")
+except ImportError as e:
+    print(f"IMPORT ERROR: {e}")
+    hybrid_ai_service = None
+    ModelChoice = None
 
 def convert_question_key_to_text(question_key: str) -> str:
     """Convert question keys like 'fun-questions-0' to actual question text"""
@@ -113,16 +125,37 @@ router = APIRouter()
 security = HTTPBearer()
 
 
-async def search_real_time_events(user_message: str) -> List[Dict[str, Any]]:
-    """Search for real-time events based on user query."""
+async def search_real_time_events(user_message: str, user_profile: dict = None) -> List[Dict[str, Any]]:
+    """Search for real-time events based on user query and interests."""
     try:
         # Check if user is asking about real-time events
         real_time_keywords = [
+            # Sports events
             'nfl games', 'nba games', 'mlb games', 'nhl games',
             'football games', 'basketball games', 'baseball games', 'hockey games',
             'games today', 'games tonight', 'games this week',
+            'sports schedule', 'game schedule',
+            # Local events
             'concerts', 'shows', 'events', 'what\'s happening',
-            'sports schedule', 'game schedule'
+            'events today', 'events tonight', 'events this week',
+            'local events', 'things to do', 'activities',
+            'festivals', 'farmers market', 'art shows',
+            'live music', 'theater', 'comedy shows',
+            'community events', 'meetups', 'workshops',
+            'what can i do', 'weekend',
+            # Time-specific queries that should prioritize real events
+            'tomorrow', 'today', 'tonight', 'this evening',
+            'next week', 'this month', 'upcoming',
+            'this weekend', 'weekend'
+        ]
+
+        # Time-specific queries that should ONLY show real-time events (no joins)
+        real_time_only_keywords = [
+            'tomorrow', 'today', 'tonight', 'this evening',
+            'this weekend', 'weekend', 'next week', 'this month',
+            'what can i do tomorrow', 'what can i do today',
+            'what can i do this weekend', 'what\'s happening tomorrow',
+            'what\'s happening today', 'what\'s happening this weekend'
         ]
 
         message_lower = user_message.lower()
@@ -146,7 +179,32 @@ async def search_real_time_events(user_message: str) -> List[Dict[str, Any]]:
         # Search for events using real-time service
         events = []
 
-        # Determine sport type from message
+        # Extract location from message or use default
+        location = 'Salt Lake City'  # Default location
+        location_keywords = {
+            'salt lake': 'Salt Lake City',
+            'utah': 'Salt Lake City',
+            'slc': 'Salt Lake City',
+            'san francisco': 'San Francisco',
+            'sf': 'San Francisco',
+            'bay area': 'San Francisco',
+            'berkeley': 'Berkeley',
+            'new york': 'New York',
+            'nyc': 'New York',
+            'los angeles': 'Los Angeles',
+            'la': 'Los Angeles',
+            'chicago': 'Chicago',
+            'denver': 'Denver'
+        }
+
+        for keyword, loc in location_keywords.items():
+            if keyword in message_lower:
+                location = loc
+                break
+
+        from app.services.realtime_service import realtime_service
+
+        # 1. Check for sports events
         sport_type = None
         if 'nfl' in message_lower or 'football' in message_lower:
             sport_type = 'nfl'
@@ -157,51 +215,62 @@ async def search_real_time_events(user_message: str) -> List[Dict[str, Any]]:
         elif 'nhl' in message_lower or 'hockey' in message_lower:
             sport_type = 'nhl'
 
-        # Use real-time service to get actual sports events
+        # Get sports events if requested
         if sport_type or any(keyword in message_lower for keyword in ['games', 'sports', 'schedule']):
-            from app.services.realtime_service import realtime_service
             try:
                 sports_events = await realtime_service.get_sports_events(sport_type, limit=5)
                 events.extend(sports_events)
             except Exception as e:
                 print(f"Error fetching sports events: {e}")
-                # Fallback to generic sports info
-                events = [{
-                    'title': 'Sports Schedule',
-                    'description': 'For current sports schedules, check ESPN.com, the official league apps, or your local sports channels.',
-                    'location': 'Various locations',
-                    'url': 'https://espn.com',
-                    'date': '2025-11-14T00:00:00',
-                    'event_type': 'sports_info',
-                    'source': 'ESPN'
-                }]
 
-        # Convert to join-like format for consistency
-        joins = []
-        for event in events:
-            joins.append({
-                'id': f"event_{hash(event.get('title', ''))}",
-                'title': event.get('title', ''),
-                'description': event.get('description', ''),
-                'location': event.get('location', ''),
-                'max_participants': None,
-                'current_participants': None,
-                'difficulty': None,
-                'tags': [event.get('event_type', 'event')],
-                'is_joined': False,
-                'match_score': 95,  # High relevance for real-time events
-                'created_at': event.get('date', ''),
-                'user': {
-                    'id': 'system',
-                    'name': event.get('source', 'Event Source'),
-                    'avatar': None,
-                    'email': None
-                },
-                'url': event.get('url', ''),
-                'event_type': 'real_time_event'
-            })
+        # 2. Check for local events (concerts, shows, festivals, etc.)
+        local_event_keywords = [
+            'concerts', 'shows', 'events', 'festivals', 'live music',
+            'theater', 'comedy', 'art shows', 'farmers market',
+            'community events', 'meetups', 'workshops', 'things to do',
+            'activities', 'what\'s happening', 'what can i do', 'weekend'
+        ]
 
-        return joins
+        if any(keyword in message_lower for keyword in local_event_keywords):
+            try:
+                # Extract user interests from profile
+                user_interests = []
+                if user_profile:
+                    # Get interests from different possible locations in profile
+                    interests = user_profile.get('interests', []) or user_profile.get('interests_array', [])
+                    passions = user_profile.get('passions', []) or user_profile.get('passions_array', [])
+                    hobbies = user_profile.get('hobbies', []) or user_profile.get('hobbies_array', [])
+
+                    user_interests.extend(interests)
+                    user_interests.extend(passions)
+                    user_interests.extend(hobbies)
+
+                    # Remove empty strings and duplicates
+                    user_interests = list(set([interest for interest in user_interests if interest and interest.strip()]))
+
+                local_events = await realtime_service.get_local_events(location, limit=8, user_interests=user_interests)
+                events.extend(local_events)
+
+                if user_interests:
+                    logger.info(f"Searched events with user interests: {user_interests}")
+
+            except Exception as e:
+                print(f"Error fetching local events: {e}")
+
+        # Fallback if no events found
+        if not events:
+            events = [{
+                'title': f'Events in {location}',
+                'description': f'For current events in {location}, check local event websites, community boards, and social media groups.',
+                'location': location,
+                'url': None,
+                'date': '2025-11-17T00:00:00',
+                'event_type': 'general_info',
+                'source': 'Local Community'
+            }]
+
+        # Return events in their original format for text integration
+        return events
 
     except Exception as e:
         import logging
@@ -210,7 +279,40 @@ async def search_real_time_events(user_message: str) -> List[Dict[str, Any]]:
         return []
 
 
-def extract_joins_from_response(response_text: str, user_message: str) -> List[Dict[str, Any]]:
+def format_events_as_text(events: List[Dict[str, Any]]) -> str:
+    """Format real-time events as text without links."""
+    if not events:
+        return ""
+
+    event_text = "\n\nHere are some events happening:\n\n"
+
+    for event in events:
+        title = event.get('title', 'Event')
+        location = event.get('location', '')
+        date = event.get('date', '')
+        time = event.get('time', '')
+        description = event.get('description', '')
+
+        # Format the event entry without links
+        event_entry = f"• {title}"
+
+        if date and time:
+            event_entry += f" - {date} at {time}"
+        elif date:
+            event_entry += f" - {date}"
+
+        if location:
+            event_entry += f"\n  📍 {location}"
+
+        if description:
+            event_entry += f"\n  {description}"
+
+        event_text += event_entry + "\n\n"
+
+    return event_text
+
+
+def extract_joins_from_response(response_text: str, user_message: str, user_profile: Dict[str, Any] = None) -> List[Dict[str, Any]]:
     """Extract join recommendations from AI response and return structured data."""
     joins = []
 
@@ -218,63 +320,86 @@ def extract_joins_from_response(response_text: str, user_message: str) -> List[D
     message_lower = user_message.lower()
     response_lower = response_text.lower()
 
-    # Sample joins data based on activity type
+    # Sample joins data - Interest-based groups with locations
     sample_joins = {
-        'hiking': {
-            'id': 'join_hiking_001',
-            'title': 'Weekend Hiking Adventure - Mount Tamalpais',
-            'description': 'Join us for a scenic hike through Mount Tamalpais State Park. Perfect for intermediate hikers looking to explore Bay Area trails.',
-            'location': 'Mount Tamalpais State Park, CA',
-            'duration': '4 hours',
-            'max_participants': 12,
-            'current_participants': 3,
-            'difficulty': 'intermediate',
-            'tags': ['hiking', 'outdoor', 'nature', 'bay area', 'weekend'],
-            'match_score': 92,
+        'hiking_bay_area': {
+            'id': 'join_hiking_bay_area_001',
+            'title': 'Bay Area Hiking Enthusiasts',
+            'description': 'A community for hiking lovers in the San Francisco Bay Area. We organize regular hikes, share trail recommendations, and connect people who love exploring nature. All skill levels welcome!',
+            'location': 'San Francisco Bay Area, CA',
+            'duration': 'Ongoing',
+            'max_participants': 50,
+            'current_participants': 23,
+            'difficulty': 'all_levels',
+            'tags': ['hiking', 'bay area', 'nature', 'trails', 'outdoor', 'community', 'weekend'],
+            'match_score': 95,
             'created_at': '2024-01-15T10:00:00Z',
             'user': {
-                'id': 'user_hiking_001',
-                'name': 'Sarah Chen',
+                'id': 'user_hiking_bay_area_001',
+                'name': 'Sarah Martinez',
                 'avatar': 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
-                'email': 'sarah.chen@example.com'
+                'email': 'sarah.martinez@example.com',
+                'bio': 'Experienced hiker who has explored trails throughout the Bay Area for over 8 years. Loves sharing hidden gems and helping newcomers discover the joy of hiking. Weekend warrior who believes the best conversations happen on the trail!'
             }
         },
-        'cooking': {
-            'id': 'join_cooking_001',
-            'title': 'Italian Pasta Making Class',
-            'description': 'Learn to make authentic Italian pasta from scratch! Hands-on cooking class suitable for all skill levels.',
-            'location': 'Culinary Studio, San Francisco',
-            'duration': '3 hours',
-            'max_participants': 8,
-            'current_participants': 2,
-            'difficulty': 'beginner',
-            'tags': ['cooking', 'italian', 'pasta', 'culinary', 'hands-on'],
+        'photography_sf': {
+            'id': 'join_photography_sf_001',
+            'title': 'San Francisco Photography Group',
+            'description': 'Connect with fellow photographers in San Francisco! Share techniques, explore the city together, and improve your skills. From beginners to professionals, everyone is welcome.',
+            'location': 'San Francisco, CA',
+            'duration': 'Ongoing',
+            'max_participants': 30,
+            'current_participants': 18,
+            'difficulty': 'all_levels',
+            'tags': ['photography', 'san francisco', 'art', 'creative', 'urban', 'landscape', 'portrait'],
             'match_score': 88,
+            'created_at': '2024-01-15T10:00:00Z',
+            'user': {
+                'id': 'user_photography_sf_001',
+                'name': 'Emma Thompson',
+                'avatar': 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face',
+                'email': 'emma.thompson@example.com',
+                'bio': 'Professional photographer turned community builder. Specializes in urban and landscape photography around San Francisco. Passionate about helping others improve their skills and discover the city through a creative lens. Always up for a photo walk!'
+            }
+        },
+        'climbing_oakland': {
+            'id': 'join_climbing_oakland_001',
+            'title': 'Oakland Rock Climbing Community',
+            'description': 'Rock climbing group based in Oakland. We climb at local gyms, outdoor crags, and organize trips to Yosemite and Tahoe. Great for meeting climbing partners and improving skills.',
+            'location': 'Oakland, CA',
+            'duration': 'Ongoing',
+            'max_participants': 25,
+            'current_participants': 12,
+            'difficulty': 'intermediate',
+            'tags': ['climbing', 'rock climbing', 'oakland', 'yosemite', 'outdoor', 'adventure', 'fitness'],
+            'match_score': 92,
             'created_at': '2024-01-15T14:00:00Z',
             'user': {
-                'id': 'user_cooking_001',
-                'name': 'Marco Rossi',
+                'id': 'user_climbing_oakland_001',
+                'name': 'Alex Rodriguez',
                 'avatar': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
-                'email': 'marco.rossi@example.com'
+                'email': 'alex.rodriguez@example.com',
+                'bio': 'Rock climbing instructor with 10+ years experience. Loves introducing people to the sport and organizing trips to Yosemite and Tahoe. Believes climbing builds both physical strength and mental resilience. Always happy to belay a new climber!'
             }
         },
-        'photography': {
-            'id': 'join_photo_001',
-            'title': 'Golden Gate Bridge Photography Walk',
-            'description': 'Capture stunning views of the Golden Gate Bridge from the best vantage points. Bring your camera and creativity!',
-            'location': 'Crissy Field, San Francisco',
-            'duration': '2.5 hours',
-            'max_participants': 10,
-            'current_participants': 4,
-            'difficulty': 'beginner',
-            'tags': ['photography', 'golden gate', 'scenic', 'creative', 'walk'],
-            'match_score': 85,
+        'boating_peninsula': {
+            'id': 'join_boating_peninsula_001',
+            'title': 'Peninsula Boating & Sailing Club',
+            'description': 'Sailing and boating enthusiasts on the Peninsula! We organize sailing trips, share boat maintenance tips, and welcome both experienced sailors and those wanting to learn.',
+            'location': 'San Mateo County, CA',
+            'duration': 'Ongoing',
+            'max_participants': 40,
+            'current_participants': 16,
+            'difficulty': 'all_levels',
+            'tags': ['boating', 'sailing', 'peninsula', 'water sports', 'bay area', 'ocean', 'marina'],
+            'match_score': 89,
             'created_at': '2024-01-15T16:00:00Z',
             'user': {
-                'id': 'user_photo_001',
-                'name': 'Alex Kim',
+                'id': 'user_boating_peninsula_001',
+                'name': 'Mike Chen',
                 'avatar': 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
-                'email': 'alex.kim@example.com'
+                'email': 'mike.chen@example.com',
+                'bio': 'Sailing enthusiast and boat owner who has been exploring the Bay for 15+ years. Enjoys teaching newcomers the ropes and organizing group sailing trips. Believes the best way to learn sailing is through hands-on experience with a supportive community.'
             }
         },
         'volleyball': {
@@ -317,21 +442,219 @@ def extract_joins_from_response(response_text: str, user_message: str) -> List[D
         }
     }
 
-    # Check for activity keywords and add relevant joins
-    if any(word in message_lower for word in ['hiking', 'hike', 'trail', 'mountain']):
-        joins.append(sample_joins['hiking'])
+    # Salt Lake City specific joins
+    salt_lake_joins = {
+        'skiing': {
+            'id': 'join_skiing_slc_001',
+            'title': 'Weekend Skiing at Park City',
+            'description': 'Join us for a day of skiing at Park City Mountain Resort! Perfect for intermediate skiers. Lift tickets and equipment rental available.',
+            'location': 'Park City Mountain Resort, Park City, UT',
+            'duration': '6 hours',
+            'max_participants': 8,
+            'current_participants': 4,
+            'difficulty': 'intermediate',
+            'tags': ['skiing', 'winter sports', 'park city', 'mountains', 'utah'],
+            'match_score': 95,
+            'created_at': '2024-01-15T08:00:00Z',
+            'user': {
+                'id': 'user_skiing_slc_001',
+                'name': 'Jake Morrison',
+                'avatar': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+                'email': 'jake.morrison@example.com'
+            }
+        },
+        'hiking_slc': {
+            'id': 'join_hiking_slc_001',
+            'title': 'Antelope Island Hiking Adventure',
+            'description': 'Explore the beautiful trails of Antelope Island State Park with stunning views of the Great Salt Lake and wildlife spotting opportunities.',
+            'location': 'Antelope Island State Park, Syracuse, UT',
+            'duration': '4 hours',
+            'max_participants': 10,
+            'current_participants': 6,
+            'difficulty': 'intermediate',
+            'tags': ['hiking', 'nature', 'antelope island', 'wildlife', 'great salt lake'],
+            'match_score': 92,
+            'created_at': '2024-01-15T09:00:00Z',
+            'user': {
+                'id': 'user_hiking_slc_001',
+                'name': 'Emma Rodriguez',
+                'avatar': 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
+                'email': 'emma.rodriguez@example.com',
+                'bio': 'Outdoor enthusiast and Utah native who has been exploring the trails around Salt Lake City for over 6 years. Loves sharing the beauty of Utah\'s landscapes with newcomers and organizing group hikes to hidden gems. Passionate about wildlife photography and conservation.'
+            }
+        },
+        'climbing_slc': {
+            'id': 'join_climbing_slc_001',
+            'title': 'Rock Climbing at Little Cottonwood Canyon',
+            'description': 'Experience world-class granite climbing in Little Cottonwood Canyon. All skill levels welcome, equipment provided for beginners.',
+            'location': 'Little Cottonwood Canyon, Salt Lake City, UT',
+            'duration': '5 hours',
+            'max_participants': 6,
+            'current_participants': 3,
+            'difficulty': 'beginner',
+            'tags': ['rock climbing', 'outdoor', 'granite', 'cottonwood canyon', 'utah'],
+            'match_score': 94,
+            'created_at': '2024-01-15T10:00:00Z',
+            'user': {
+                'id': 'user_climbing_slc_001',
+                'name': 'Alex Chen',
+                'avatar': 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
+                'email': 'alex.chen@example.com'
+            }
+        },
+        'cycling_slc': {
+            'id': 'join_cycling_slc_001',
+            'title': 'Jordan River Parkway Bike Ride',
+            'description': 'Leisurely bike ride along the Jordan River Parkway trail. Perfect for all fitness levels with beautiful scenery and wildlife.',
+            'location': 'Jordan River Parkway, Salt Lake City, UT',
+            'duration': '3 hours',
+            'max_participants': 12,
+            'current_participants': 7,
+            'difficulty': 'beginner',
+            'tags': ['cycling', 'biking', 'jordan river', 'parkway', 'nature'],
+            'match_score': 88,
+            'created_at': '2024-01-15T11:00:00Z',
+            'user': {
+                'id': 'user_cycling_slc_001',
+                'name': 'Sarah Johnson',
+                'avatar': 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face',
+                'email': 'sarah.johnson@example.com'
+            }
+        },
+        'food_slc': {
+            'id': 'join_food_slc_001',
+            'title': 'Salt Lake City Food Tour',
+            'description': 'Discover the best local eats in downtown Salt Lake City! We\'ll visit 5 unique restaurants and food trucks showcasing Utah\'s culinary scene.',
+            'location': 'Downtown Salt Lake City, UT',
+            'duration': '4 hours',
+            'max_participants': 8,
+            'current_participants': 5,
+            'difficulty': 'beginner',
+            'tags': ['food', 'culinary', 'downtown', 'restaurants', 'local cuisine'],
+            'match_score': 90,
+            'created_at': '2024-01-15T12:00:00Z',
+            'user': {
+                'id': 'user_food_slc_001',
+                'name': 'Maria Gonzalez',
+                'avatar': 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face',
+                'email': 'maria.gonzalez@example.com'
+            }
+        },
+        'arts_slc': {
+            'id': 'join_arts_slc_001',
+            'title': 'Gallery Stroll in Salt Lake City',
+            'description': 'Join us for the monthly Gallery Stroll in downtown Salt Lake City. Explore local art galleries, meet artists, and enjoy the vibrant arts scene.',
+            'location': 'Downtown Salt Lake City Art District, UT',
+            'duration': '3 hours',
+            'max_participants': 15,
+            'current_participants': 9,
+            'difficulty': 'beginner',
+            'tags': ['art', 'gallery', 'culture', 'downtown', 'creative'],
+            'match_score': 87,
+            'created_at': '2024-01-15T17:00:00Z',
+            'user': {
+                'id': 'user_arts_slc_001',
+                'name': 'Jordan Kim',
+                'avatar': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+                'email': 'jordan.kim@example.com'
+            }
+        },
+        'winter_slc': {
+            'id': 'join_winter_slc_001',
+            'title': 'Snowshoeing in Big Cottonwood Canyon',
+            'description': 'Experience the winter wonderland of Big Cottonwood Canyon on snowshoes. Perfect for beginners, equipment rental available.',
+            'location': 'Big Cottonwood Canyon, Salt Lake City, UT',
+            'duration': '4 hours',
+            'max_participants': 8,
+            'current_participants': 4,
+            'difficulty': 'beginner',
+            'tags': ['snowshoeing', 'winter', 'cottonwood canyon', 'snow', 'mountains'],
+            'match_score': 91,
+            'created_at': '2024-01-15T13:00:00Z',
+            'user': {
+                'id': 'user_winter_slc_001',
+                'name': 'Tyler Anderson',
+                'avatar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face',
+                'email': 'tyler.anderson@example.com'
+            }
+        }
+    }
 
-    if any(word in message_lower for word in ['cooking', 'cook', 'pasta', 'italian', 'culinary']):
-        joins.append(sample_joins['cooking'])
+    # Only suggest joins if user explicitly asks for group activities or events
+    group_activity_keywords = [
+        'group', 'join', 'activity', 'event', 'meetup', 'together',
+        'group activity', 'things to do', 'activities', 'events near me',
+        'what can i do', 'looking for', 'want to do', 'interested in doing',
+        'learn', 'meet', 'connect', 'find people', 'enthusiasts', 'community',
+        'club', 'groups', 'sailing', 'hiking', 'climbing', 'boating', 'photography',
+        'people who like', 'people who enjoy', 'others who', 'someone who'
+    ]
+
+    # Check if user is asking for group activities
+    is_group_activity_request = any(keyword in message_lower for keyword in group_activity_keywords)
+
+    if not is_group_activity_request:
+        return joins  # Return empty list if not asking for group activities
+
+    # Determine user's location for location-based filtering
+    user_location = None
+
+    # First check user profile location
+    if user_profile and user_profile.get('location'):
+        user_location = user_profile['location'].lower()
+    elif hasattr(user_message, 'user') and user_message.user:
+        # Try to get location from user profile
+        if hasattr(user_message.user, 'contact_info') and user_message.user.contact_info:
+            user_location = user_message.user.contact_info.get('location', '').lower()
+
+    # If no user location available, try to extract from message context or default
+    if not user_location:
+        # Check if location is mentioned in the message
+        location_keywords = {
+            'salt lake': 'salt lake city',
+            'utah': 'salt lake city',
+            'slc': 'salt lake city',
+            'san francisco': 'san francisco',
+            'sf': 'san francisco',
+            'bay area': 'san francisco'
+        }
+
+        for keyword, location in location_keywords.items():
+            if keyword in message_lower:
+                user_location = location
+                break
+
+    # Determine if user is in Salt Lake City area (check both message and profile location)
+    is_salt_lake = (
+        any(keyword in message_lower for keyword in ['salt lake', 'slc', 'utah', 'antelope island']) or
+        (user_location and any(keyword in user_location for keyword in ['salt lake', 'utah', 'slc']))
+    )
+
+    # Check for activity keywords and add location-appropriate joins
+    if any(word in message_lower for word in ['hiking', 'hike', 'trail', 'mountain', 'nature', 'outdoor']):
+        if is_salt_lake:
+            joins.append(salt_lake_joins['hiking_slc'])
+        else:
+            joins.append(sample_joins['hiking_bay_area'])
 
     if any(word in message_lower for word in ['photography', 'photo', 'camera', 'picture']):
-        joins.append(sample_joins['photography'])
+        joins.append(sample_joins['photography_sf'])
 
-    if any(word in message_lower for word in ['volleyball', 'beach', 'sport', 'tournament']):
-        joins.append(sample_joins['volleyball'])
+    if any(word in message_lower for word in ['boating', 'boat', 'sailing', 'sail', 'marina', 'water sports']):
+        joins.append(sample_joins['boating_peninsula'])
 
     if any(word in message_lower for word in ['climbing', 'climb', 'rock', 'boulder']):
-        joins.append(sample_joins['climbing'])
+        if is_salt_lake:
+            joins.append(salt_lake_joins['climbing_slc'])
+        else:
+            joins.append(sample_joins['climbing_oakland'])
+
+    # If no specific activity mentioned, suggest one popular group based on location
+    if not joins:
+        if is_salt_lake:
+            joins.append(salt_lake_joins['hiking_slc'])
+        else:
+            joins.append(sample_joins['hiking_bay_area'])
 
     return joins
 
@@ -376,6 +699,8 @@ class SimpleChatResponse(BaseModel):
     intent: str = "general_chat"
     confidence: float = 1.0
     joins: List[Dict[str, Any]] = []  # Add joins field for structured join data
+    tokens: int = 0  # Add tokens field
+    cost: float = 0.0  # Add cost field
 
 
 @router.post("/ai/chat", response_model=ChatResponse)
@@ -424,7 +749,7 @@ async def create_ai_chat(
     db.commit()
     
     # Build context for AI
-    system_prompt = build_system_prompt(current_user, request.context)
+    system_prompt = await build_system_prompt(current_user, request.context)
     
     messages = [
         {"role": "system", "content": system_prompt},
@@ -497,7 +822,7 @@ async def send_ai_chat_message(
     ).order_by(Message.created_at).limit(20).all()
     
     # Build messages for AI
-    system_prompt = build_system_prompt(current_user, request.context)
+    system_prompt = await build_system_prompt(current_user, request.context)
     messages = [{"role": "system", "content": system_prompt}]
     
     for msg in history:
@@ -563,7 +888,7 @@ async def stream_ai_chat_message(
     ).order_by(Message.created_at).limit(20).all()
     
     # Build messages for AI
-    system_prompt = build_system_prompt(current_user, request.context)
+    system_prompt = await build_system_prompt(current_user, request.context)
     messages = [{"role": "system", "content": system_prompt}]
     
     for msg in history:
@@ -600,6 +925,8 @@ async def lifestring_ai_chat_public(
     logger = logging.getLogger(__name__)
 
     try:
+        from app.services.realtime_service import realtime_service
+
         logger.info(f"Received message: {request.message}")
         logger.info(f"Request context: {request.context}")
         logger.info(f"realtime_service available: {realtime_service is not None}")
@@ -612,6 +939,7 @@ async def lifestring_ai_chat_public(
 
         if profile_data:
             logger.info(f"Using profile data: {profile_data}")
+            logger.info(f"🔍 PROFILE DATA FOUND - WILL PROCESS WITH JOINS")
 
             # Handle profile-specific queries directly
             message_lower = request.message.lower()
@@ -636,7 +964,9 @@ async def lifestring_ai_chat_public(
                         message=message,
                         intent="profile_inquiry",
                         confidence=0.95,
-                        joins=[]
+                        joins=[],
+                        tokens=0,
+                        cost=0.0
                     )
 
                 # If asking specifically about hobbies
@@ -651,7 +981,9 @@ async def lifestring_ai_chat_public(
                         message=message,
                         intent="profile_inquiry",
                         confidence=0.95,
-                        joins=[]
+                        joins=[],
+                        tokens=0,
+                        cost=0.0
                     )
 
                 # For interests query
@@ -670,7 +1002,9 @@ async def lifestring_ai_chat_public(
                         message=message,
                         intent="profile_inquiry",
                         confidence=0.95,
-                        joins=[]
+                        joins=[],
+                        tokens=0,
+                        cost=0.0
                     )
 
             # For other messages with profile data, use enhanced OpenAI with real-time capabilities
@@ -678,40 +1012,105 @@ async def lifestring_ai_chat_public(
 
             # Build comprehensive personalized system prompt with current time/date
             import datetime
-            now = datetime.datetime.now()
-            current_time = now.strftime("%I:%M %p")
-            current_date = now.strftime("%A, %B %d, %Y")
+            import pytz
+            from app.services.realtime_service import realtime_service
+
+            # Get user's location from profile data for timezone detection
+            user_location = None
+            if profile_data:
+                user_location = profile_data.get('location')
+
+            # Get current time in user's timezone
+            time_info = await realtime_service.get_current_time(user_location)
+            current_time = time_info["current_time"]
+            current_date = time_info["current_date"]
+
+            # Also get times for major US timezones for reference
+            import pytz
+            utc_now = datetime.datetime.now(pytz.UTC)
+            pst_time = utc_now.astimezone(pytz.timezone('US/Pacific')).strftime("%I:%M %p")
+            mst_time = utc_now.astimezone(pytz.timezone('US/Mountain')).strftime("%I:%M %p")
+            cst_time = utc_now.astimezone(pytz.timezone('US/Central')).strftime("%I:%M %p")
+            est_time = utc_now.astimezone(pytz.timezone('US/Eastern')).strftime("%I:%M %p")
+
+            # Extract potential joins from user message to include in system prompt
+            logger.info(f"🔍 EXTRACTING JOINS FOR SYSTEM PROMPT")
+            potential_joins = extract_joins_from_response("", request.message, profile_data)
+            logger.info(f"🔍 POTENTIAL JOINS: {len(potential_joins) if potential_joins else 0}")
+
+            # Prepare join information for system prompt
+            join_prompt_addition = ""
+            if potential_joins:
+                join_info = potential_joins[0]  # Only use the first/most relevant join
+                logger.info(f"🔍 JOIN INFO: {join_info['title']} by {join_info['user']['name']}")
+                join_prompt_addition = f"""
+
+**RECOMMENDED JOIN FOR THIS CONVERSATION:**
+You should recommend the "{join_info['title']}" group in {join_info['location']}.
+- Description: {join_info['description']}
+- Created by: {join_info['user']['name']} - {join_info['user']['bio']}
+- Location: {join_info['location']}
+- Current members: {join_info['current_participants']}/{join_info['max_participants']}
+
+CRITICAL INSTRUCTION: The user is asking about finding people with shared interests. You MUST respond by recommending the specific group above. Use this exact format:
+
+"I'd recommend checking out the {join_info['title']} group! It was created by {join_info['user']['name']}."
+
+DO NOT mention "Strings feed" or any other location - the join card will appear directly below your message.
+DO NOT include the full bio in your text response - the join card will display that information.
+DO NOT mention Connections feature. DO NOT give generic advice. ALWAYS mention the specific group name and creator name only."""
+            else:
+                logger.info(f"🔍 NO JOINS FOUND for message: {request.message}")
 
             system_prompt = f"""You are Strings, Lifestring's AI assistant. You can answer any questions the user has naturally and conversationally.
 
 Current time: {current_time} on {current_date}.
 
+TIMEZONE REFERENCE (for location-specific time queries):
+- Pacific Time: {pst_time}
+- Mountain Time: {mst_time} (Utah, Colorado, etc.)
+- Central Time: {cst_time}
+- Eastern Time: {est_time}
+
 You are having a conversation with a user on Lifestring. Here's how Lifestring works:
 
 **YOU ARE STRINGS**: You are the AI that users chat with about what they want to do and who they want to meet.
 
-**JOINS**: These are specific events/activities with set times and locations that users can join. When users tell you what they want to do, look for relevant Joins and recommend them.
+**JOINS**: These are specific events/activities with set times and locations that users can join. Joins are integrated directly into the main Strings interface - there is NO separate "Joins section". When users tell you what they want to do, recommend relevant Joins they can find in their main Strings feed.
 
 **CONNECTIONS**: This is how users find friends - they get recommended people based on interests, location, and age. When users want to meet people, direct them to check their Connections.
 
+**IMPORTANT UI STRUCTURE**:
+- Lifestring Joins (ongoing groups/communities) appear as interactive cards directly in the chat with clickable buttons
+- Real-time events (concerts, activities happening now) should be provided directly in your chat response with all details
+- NEVER mention "Strings feed", "main Strings interface", "Joins section", or any separate interface
+- NEVER mention "event cards", "cards appearing", or "look for cards" - just provide event information directly in your response
+- When suggesting Lifestring community groups, provide natural conversational responses and let the join cards appear automatically below your message
+
 **YOUR APPROACH**:
 1. Answer general questions naturally (weather, time, jokes, etc.) - but ONLY respond with time when specifically asked "what time is it"
-2. When users tell you what they want to do or activities they're interested in, recommend relevant Joins they can participate in
-3. When users want to meet people or make friends, direct them to their Connections where they'll find recommended people
+2. When users ask for group activities or events, provide natural conversational responses about what's available
+3. When users want to meet people or make friends, direct them to their Connections feature
 4. Have natural conversations about their interests and goals
 5. NEVER mention external platforms like Meetup, Facebook, etc.
 6. Focus on Lifestring's features: Joins for activities, Connections for meeting people
 7. NEVER use markdown formatting like **bold** or *italics* - use plain text only
+8. NEVER mention any separate interface - Lifestring joins appear directly in the chat as clickable cards, but real-time events should be provided directly in your response
+9. PRIORITIZE real-time events over static joins when users ask about specific times:
+   - "What can I do in Salt Lake tomorrow?" → suggest real-time events (museums, gardens, seasonal activities)
+   - "What can I do in Salt Lake this weekend?" → suggest both real-time events and recurring joins
+   - "I want to find hiking groups" → suggest static joins for ongoing activities
+10. ALWAYS match suggestions to the location mentioned in their message FIRST, then fall back to their profile location
+   - If they ask "What can I do in Utah?" → recommend Utah activities regardless of profile location
+   - If they ask "What can I do in San Francisco?" → recommend Bay Area activities regardless of profile location
+   - If no location mentioned in message → use their profile location
 
-**SAMPLE JOINS TO RECOMMEND** (intelligently match based on user interests):
-- Outdoor Adventures: "Weekend Hiking Adventure - Mount Tamalpais" (intermediate level, Bay Area trails)
-- Culinary Experiences: "Italian Pasta Making Class" (hands-on learning, all skill levels)
-- Creative Activities: "Golden Gate Bridge Photography Walk" (capture stunning views)
-- Active Sports: "Beach Volleyball Tournament" (Ocean Beach, team-based fun)
-- Intellectual Pursuits: "Sci-Fi Book Club Discussion" (monthly meetings, great discussions)
-- Wellness & Mindfulness: "Yoga in the Park" (Golden Gate Park, peaceful mornings)
-- Social Experiences: "Napa Valley Wine Tasting Trip" (weekend adventure, 21+ only)
-- Fitness Challenges: "Indoor Rock Climbing/Bouldering" (beginner-friendly, equipment provided)
+**LOCATION DETECTION PRIORITY**:
+1. If user mentions "Utah", "Salt Lake", "SLC" in their message → recommend Utah activities
+2. If user mentions "San Francisco", "SF", "Bay Area", "Berkeley" in their message → recommend Bay Area activities
+3. If no location mentioned → use their profile location
+
+**IMPORTANT**: When users ask about groups or communities on Lifestring, you will be provided with specific join recommendations in the system prompt. Prioritize recommending these specific joins. However, when users ask about real-time events, activities, or things happening in specific locations, you can use your Google Search capabilities to provide current, accurate information about events, activities, and happenings in their requested location.
 
 **SMART CATEGORIZATION**: Automatically understand activity types from context:
 - Hiking, camping, surfing → Outdoor Adventures
@@ -723,7 +1122,7 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
 - Parties, meetups, social events → Social Experiences
 - Gym, climbing, fitness classes → Fitness Challenges
 
-**REMEMBER**: You are Strings - the conversational AI. Users chat with you, and you help them discover Joins and Connections on Lifestring."""
+**REMEMBER**: You are Strings - the conversational AI. Users chat with you, and you help them discover Joins and Connections on Lifestring.{join_prompt_addition}"""
 
             interests = profile_data.get('interests', []) or []
             hobbies = profile_data.get('hobbies', []) or []
@@ -791,21 +1190,29 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
             # Add current message
             messages.append({"role": "user", "content": request.message})
 
-            # Get available real-time functions
-            tools = realtime_service.get_available_functions() if realtime_service else None
-            logger.info(f"Using enhanced OpenAI service with tools: {tools is not None}")
+            # Use hybrid AI service if available, otherwise fallback to OpenAI
+            logger.info(f"hybrid_ai_service available: {hybrid_ai_service is not None}")
+            if hybrid_ai_service:
+                response = await hybrid_ai_service.chat_completion(
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=500,
+                    context={"profile_data": profile_data}
+                )
+            else:
+                # Fallback to OpenAI with function calling
+                tools = realtime_service.get_available_functions() if realtime_service else None
+                logger.info(f"Using enhanced OpenAI service with tools: {tools is not None}")
+                response = await openai_service.chat_completion(
+                    messages=messages,
+                    model="gpt-4o",
+                    temperature=0.7,
+                    max_tokens=500,
+                    tools=tools if tools else None
+                )
 
-            # Get AI response with function calling capability
-            response = await openai_service.chat_completion(
-                messages=messages,
-                model="gpt-4o",
-                temperature=0.7,
-                max_tokens=500,
-                tools=tools if tools else None
-            )
-
-            # Handle function calls if present
-            if response.get("tool_calls"):
+            # Handle function calls if present (only for OpenAI fallback)
+            if not hybrid_ai_service and response.get("tool_calls"):
                 # Execute function calls
                 for tool_call in response["tool_calls"]:
                     function_name = tool_call["function"]["name"]
@@ -840,78 +1247,182 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
                     temperature=0.7,
                     max_tokens=500
                 )
+            else:
+                # For hybrid AI service, the response is already final
+                final_response = response
 
-                # Extract joins from the response
-                joins = extract_joins_from_response(final_response["content"], request.message)
+                # Only use old real-time events search for OpenAI fallback
+                if not hybrid_ai_service:
+                    # Search for real-time events if user is asking about them
+                    real_time_events = await search_real_time_events(request.message, profile_data)
+                    response_message = final_response["content"]
 
-                # Search for real-time events if user is asking about them
-                real_time_events = await search_real_time_events(request.message)
-                if real_time_events:
-                    joins.extend(real_time_events)
-                    logger.info(f"Added {len(real_time_events)} real-time events to response")
+                    # Check if this is a time-specific query that should only show real-time events
+                    message_lower = request.message.lower()
+                    real_time_only_keywords = [
+                        'tomorrow', 'today', 'tonight', 'this evening',
+                        'this weekend', 'weekend', 'next week', 'this month',
+                        'what can i do tomorrow', 'what can i do today',
+                        'what can i do this weekend', 'what\'s happening tomorrow',
+                        'what\'s happening today', 'what\'s happening this weekend'
+                    ]
+
+                    is_real_time_only_query = any(keyword in message_lower for keyword in real_time_only_keywords)
+
+                    if real_time_events:
+                        # Add events as formatted text to the response
+                        events_text = format_events_as_text(real_time_events)
+                        if is_real_time_only_query:
+                            response_message = events_text  # Replace AI response with just events for time-specific queries
+                        else:
+                            response_message += events_text  # Append events to AI response for general queries
+                        logger.info(f"Added {len(real_time_events)} real-time events to response text")
+
+                    # Only include joins if it's not a time-specific query
+                    joins = [] if is_real_time_only_query else extract_joins_from_response(final_response["content"], request.message, profile_data)
+                else:
+                    # For hybrid AI service, use the response as-is (Google Grounding handles real-time data)
+                    response_message = final_response["content"]
+                    joins = extract_joins_from_response(final_response["content"], request.message, profile_data)
 
                 return SimpleChatResponse(
-                    message=final_response["content"],
+                    message=response_message,
                     intent="general_chat",
                     confidence=0.9,
-                    joins=joins
+                    joins=joins,
+                    tokens=final_response.get("tokens", 0),
+                    cost=final_response.get("cost", 0.0)
                 )
 
-            # Extract joins from the response
-            joins = extract_joins_from_response(response["content"], request.message)
+            # Only use old real-time events search for OpenAI fallback
+            if not hybrid_ai_service:
+                # Search for real-time events if user is asking about them
+                real_time_events = await search_real_time_events(request.message, profile_data)
+                response_message = response["content"]
 
-            # Search for real-time events if user is asking about them
-            real_time_events = await search_real_time_events(request.message)
-            if real_time_events:
-                joins.extend(real_time_events)
-                logger.info(f"Added {len(real_time_events)} real-time events to response")
+                # Check if this is a time-specific query that should only show real-time events
+                message_lower = request.message.lower()
+                real_time_only_keywords = [
+                    'tomorrow', 'today', 'tonight', 'this evening',
+                    'this weekend', 'weekend', 'next week', 'this month',
+                    'what can i do tomorrow', 'what can i do today',
+                    'what can i do this weekend', 'what\'s happening tomorrow',
+                    'what\'s happening today', 'what\'s happening this weekend'
+                ]
+
+                is_real_time_only_query = any(keyword in message_lower for keyword in real_time_only_keywords)
+
+                if real_time_events:
+                    # Add events as formatted text to the response
+                    events_text = format_events_as_text(real_time_events)
+                    if is_real_time_only_query:
+                        response_message = events_text  # Replace AI response with just events for time-specific queries
+                    else:
+                        response_message += events_text  # Append events to AI response for general queries
+                    logger.info(f"Added {len(real_time_events)} real-time events to response text")
+
+                # Only include joins if it's not a time-specific query
+                joins = [] if is_real_time_only_query else extract_joins_from_response(response["content"], request.message, profile_data)
+            else:
+                # For hybrid AI service, use the response as-is (Google Grounding handles real-time data)
+                response_message = response["content"]
+                joins = extract_joins_from_response(response["content"], request.message, profile_data)
 
             return SimpleChatResponse(
-                message=response["content"],
+                message=response_message,
                 intent="general_chat",
                 confidence=0.9,
-                joins=joins
+                joins=joins,
+                tokens=response.get("tokens", 0),
+                cost=response.get("cost", 0.0)
             )
 
         # If no profile data, use enhanced OpenAI with real-time capabilities
         import json
         import datetime
+        from app.services.realtime_service import realtime_service
 
-        # Add current time/date to system prompt
-        now = datetime.datetime.now()
-        current_time = now.strftime("%I:%M %p")
-        current_date = now.strftime("%A, %B %d, %Y")
+        # Get user's location from profile data for timezone detection
+        user_location = None
+        if profile_data:
+            user_location = profile_data.get('location')
+
+        # Get current time in user's timezone
+        time_info = await realtime_service.get_current_time(user_location)
+        current_time = time_info["current_time"]
+        current_date = time_info["current_date"]
+
+        # Also get times for major US timezones for reference
+        import pytz
+        utc_now = datetime.datetime.now(pytz.UTC)
+        pst_time = utc_now.astimezone(pytz.timezone('US/Pacific')).strftime("%I:%M %p")
+        mst_time = utc_now.astimezone(pytz.timezone('US/Mountain')).strftime("%I:%M %p")
+        cst_time = utc_now.astimezone(pytz.timezone('US/Central')).strftime("%I:%M %p")
+        est_time = utc_now.astimezone(pytz.timezone('US/Eastern')).strftime("%I:%M %p")
+
+        # Extract potential joins from user message to include in system prompt
+        logger.info(f"🔍 EXTRACTING JOINS FOR SYSTEM PROMPT")
+        potential_joins = extract_joins_from_response("", request.message, profile_data)
+        logger.info(f"🔍 POTENTIAL JOINS: {len(potential_joins) if potential_joins else 0}")
+
+        # Prepare join information for system prompt
+        join_prompt_addition = ""
+        if potential_joins:
+            join_info = potential_joins[0]  # Only use the first/most relevant join
+            logger.info(f"🔍 JOIN INFO: {join_info['title']} by {join_info['user']['name']}")
+            join_prompt_addition = f"""
+
+**RECOMMENDED JOIN FOR THIS CONVERSATION:**
+You should recommend the "{join_info['title']}" group in {join_info['location']}.
+- Description: {join_info['description']}
+- Created by: {join_info['user']['name']} - {join_info['user']['bio']}
+- Location: {join_info['location']}
+- Current members: {join_info['current_participants']}/{join_info['max_participants']}
+
+CRITICAL INSTRUCTION: The user is asking about finding people with shared interests. You MUST respond by recommending the specific group above. Use this exact format:
+
+"I'd recommend checking out the {join_info['title']} group! It was created by {join_info['user']['name']}, who {join_info['user']['bio']} You can find this group in your Strings feed."
+
+DO NOT mention Connections feature. DO NOT give generic advice. ALWAYS mention the specific group name and creator details."""
+        else:
+            logger.info(f"🔍 NO JOINS FOUND for message: {request.message}")
 
         system_prompt = f"""You are Strings, Lifestring's AI assistant. You can answer any questions the user has naturally and conversationally.
 
 Current time: {current_time} on {current_date}.
 
+TIMEZONE REFERENCE (for location-specific time queries):
+- Pacific Time: {pst_time}
+- Mountain Time: {mst_time} (Utah, Colorado, etc.)
+- Central Time: {cst_time}
+- Eastern Time: {est_time}
+
 You are having a conversation with a user on Lifestring. Here's how Lifestring works:
 
 **YOU ARE STRINGS**: You are the AI that users chat with about what they want to do and who they want to meet.
 
-**JOINS**: These are specific events/activities with set times and locations that users can join. When users tell you what they want to do, look for relevant Joins and recommend them.
+**JOINS**: These are ongoing interest-based groups/communities where people with shared interests connect and organize activities together. Joins are integrated directly into the main Strings interface - there is NO separate "Joins section". When users ask about finding groups or communities, recommend ONE relevant Join they can find in their main Strings feed.
 
 **CONNECTIONS**: This is how users find friends - they get recommended people based on interests, location, and age. When users want to meet people, direct them to check their Connections.
 
+**IMPORTANT UI STRUCTURE**:
+- Joins are NOT in a separate section - they appear as cards in the main Strings interface
+- NEVER say "you can find this event under the Joins section" or similar
+- Instead say "you can find this event in your Strings feed" or "look for this in your main Strings interface"
+
 **YOUR APPROACH**:
 1. Answer general questions naturally (weather, time, jokes, etc.) - but ONLY respond with time when specifically asked "what time is it"
-2. When users tell you what they want to do or activities they're interested in, recommend relevant Joins they can participate in
+2. When users tell you what they want to do or activities they're interested in, recommend relevant Joins they can find in their Strings feed
 3. When users want to meet people or make friends, direct them to their Connections where they'll find recommended people
 4. Have natural conversations about their interests and goals
 5. NEVER mention external platforms like Meetup, Facebook, etc.
 6. Focus on Lifestring's features: Joins for activities, Connections for meeting people
 7. NEVER use markdown formatting like **bold** or *italics* - use plain text only
+8. NEVER mention a "Joins section" - joins are integrated into the main Strings interface
+9. ONLY suggest Joins when user explicitly asks for group activities, events, or things to do
+10. ALWAYS match Join suggestions to user's location - Salt Lake City gets Utah activities, San Francisco gets Bay Area activities
 
-**SAMPLE JOINS TO RECOMMEND** (intelligently match based on user interests):
-- Outdoor Adventures: "Weekend Hiking Adventure - Mount Tamalpais" (intermediate level, Bay Area trails)
-- Culinary Experiences: "Italian Pasta Making Class" (hands-on learning, all skill levels)
-- Creative Activities: "Golden Gate Bridge Photography Walk" (capture stunning views)
-- Active Sports: "Beach Volleyball Tournament" (Ocean Beach, team-based fun)
-- Intellectual Pursuits: "Sci-Fi Book Club Discussion" (monthly meetings, great discussions)
-- Wellness & Mindfulness: "Yoga in the Park" (Golden Gate Park, peaceful mornings)
-- Social Experiences: "Napa Valley Wine Tasting Trip" (weekend adventure, 21+ only)
-- Fitness Challenges: "Indoor Rock Climbing/Bouldering" (beginner-friendly, equipment provided)
+**IMPORTANT**: When users ask about groups or communities on Lifestring, you will be provided with specific join recommendations in the system prompt. Prioritize recommending these specific joins. However, when users ask about real-time events, activities, or things happening in specific locations, you can use your Google Search capabilities to provide current, accurate information about events, activities, and happenings in their requested location.
 
 **SMART CATEGORIZATION**: Automatically understand activity types from context:
 - Hiking, camping, surfing → Outdoor Adventures
@@ -923,7 +1434,9 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
 - Parties, meetups, social events → Social Experiences
 - Gym, climbing, fitness classes → Fitness Challenges
 
-**REMEMBER**: You are Strings - the conversational AI. Users chat with you, and you help them discover Joins and Connections on Lifestring."""
+**REAL-TIME EVENTS**: When users ask about events, activities, or things happening in specific locations (like "what events are happening in Madrid this weekend" or "who's playing at The Depot"), use your Google Search capabilities to find current, real-time information. Provide specific event names, dates, times, locations, and ticket information directly in your chat response. NEVER mention "event cards" or "cards appearing" - just give the information directly.
+
+**REMEMBER**: You are Strings - the conversational AI. Users chat with you, and you help them discover Joins and Connections on Lifestring.{join_prompt_addition}"""
 
         # Prepare messages for OpenAI
         messages = [
@@ -931,14 +1444,30 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
             {"role": "user", "content": request.message}
         ]
 
-        # Get available real-time functions
-        tools = realtime_service.get_available_functions() if realtime_service else None
-        logger.info(f"No profile data - using enhanced OpenAI service with tools: {tools is not None}")
+        # Use hybrid AI service if available, otherwise fallback to OpenAI
+        logger.info(f"🔍 ABOUT TO CALL HYBRID AI SERVICE - system_prompt length: {len(system_prompt)}")
+        logger.info(f"Profile data available - hybrid_ai_service available: {hybrid_ai_service is not None}")
+        if hybrid_ai_service:
+            # Get available real-time functions for hybrid AI service
+            tools = realtime_service.get_available_functions() if realtime_service else None
+            logger.info(f"Providing tools to hybrid AI service: {tools is not None}")
 
-        # Get AI response with function calling capability
-        response = await openai_service.chat_completion(
-            messages=messages,
-            model=settings.CHAT_MODEL,
+            response = await hybrid_ai_service.chat_completion(
+                messages=messages,
+                temperature=0.7,
+                max_tokens=500,
+                context={},
+                tools=tools
+            )
+        else:
+            # Get available real-time functions
+            tools = realtime_service.get_available_functions() if realtime_service else None
+            logger.info(f"Fallback to OpenAI service with tools: {tools is not None}")
+
+            # Get AI response with function calling capability
+            response = await openai_service.chat_completion(
+                messages=messages,
+                model=settings.CHAT_MODEL,
             temperature=0.7,
             max_tokens=500,
             tools=tools if tools else None
@@ -946,6 +1475,8 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
 
         # Handle function calls if present
         if response.get("tool_calls"):
+            logger.info(f"Processing {len(response['tool_calls'])} function calls from {'hybrid AI service' if hybrid_ai_service else 'OpenAI fallback'}")
+
             # Execute function calls
             for tool_call in response["tool_calls"]:
                 function_name = tool_call["function"]["name"]
@@ -974,48 +1505,71 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
                 })
 
             # Get final response with function results
-            final_response = await openai_service.chat_completion(
-                messages=messages,
-                model="gpt-4o",
-                temperature=0.7,
-                max_tokens=500
-            )
+            if hybrid_ai_service:
+                final_response = await hybrid_ai_service.chat_completion(
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=500,
+                    context={},
+                    tools=tools
+                )
+            else:
+                final_response = await openai_service.chat_completion(
+                    messages=messages,
+                    model="gpt-4o",
+                    temperature=0.7,
+                    max_tokens=500
+                )
+        else:
+            # No function calls, use response as-is
+            final_response = response
 
-            logger.info(f"AI response (with functions): {final_response['content']}")
+        logger.info(f"AI response: {final_response['content']}")
 
-            # Extract joins from the response
-            joins = extract_joins_from_response(final_response["content"], request.message)
-
+        # Only use old real-time events search for OpenAI fallback
+        if not hybrid_ai_service:
             # Search for real-time events if user is asking about them
-            real_time_events = await search_real_time_events(request.message)
+            real_time_events = await search_real_time_events(request.message, profile_data)
+            response_message = final_response["content"]
+
+            # Check if this is a time-specific query that should only show real-time events
+            message_lower = request.message.lower()
+            real_time_only_keywords = [
+                'tomorrow', 'today', 'tonight', 'this evening',
+                'this weekend', 'weekend', 'next week', 'this month',
+                'what can i do tomorrow', 'what can i do today',
+                'what can i do this weekend', 'what\'s happening tomorrow',
+                'what\'s happening today', 'what\'s happening this weekend'
+            ]
+
+            is_real_time_only_query = any(keyword in message_lower for keyword in real_time_only_keywords)
+
             if real_time_events:
-                joins.extend(real_time_events)
-                logger.info(f"Added {len(real_time_events)} real-time events to response")
+                # Add events as formatted text to the response
+                events_text = format_events_as_text(real_time_events)
+                if is_real_time_only_query:
+                    response_message = events_text  # Replace AI response with just events for time-specific queries
+                else:
+                    response_message += events_text  # Append events to AI response for general queries
+                logger.info(f"Added {len(real_time_events)} real-time events to response text")
 
-            return SimpleChatResponse(
-                message=final_response["content"],
-                intent="general_chat",
-                confidence=0.9,
-                joins=joins
-            )
-
-        logger.info(f"AI response: {response['content']}")
-
-        # Extract joins from the response
-        joins = extract_joins_from_response(response["content"], request.message)
-
-        # Search for real-time events if user is asking about them
-        real_time_events = await search_real_time_events(request.message)
-        if real_time_events:
-            joins.extend(real_time_events)
-            logger.info(f"Added {len(real_time_events)} real-time events to response")
+            # Only include joins if it's not a time-specific query
+            joins = [] if is_real_time_only_query else extract_joins_from_response(final_response["content"], request.message, None)
+        else:
+            # For hybrid AI service, use the response as-is (Google Grounding handles real-time data)
+            response_message = final_response["content"]
+            joins = extract_joins_from_response(final_response["content"], request.message, None)
 
         return SimpleChatResponse(
-            message=response["content"],
+            message=response_message,
             intent="general_chat",
             confidence=0.9,
-            joins=joins
+            joins=joins,
+            tokens=final_response.get("tokens", 0),
+            cost=final_response.get("cost", 0.0)
         )
+
+
     except Exception as e:
         logger.error(f"Error in AI chat: {str(e)}", exc_info=True)
         # Fallback response for any errors
@@ -1023,7 +1577,9 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
             message="I'm having trouble connecting right now. Please try again in a moment.",
             intent="general_chat",
             confidence=1.0,
-            joins=[]
+            joins=[],
+            tokens=0,
+            cost=0.0
         )
 
 
@@ -1287,31 +1843,78 @@ IMPORTANT: Never mention external platforms like Meetup, Facebook, Instagram, or
                 system_prompt += f" Here's their profile:\n" + "\n".join(profile_context)
                 system_prompt += "\n\nUse this information to provide personalized suggestions for activities, connections, and communities. When they ask about creating strings or finding people, reference their interests and suggest specific activities or groups they might enjoy."
 
-        # Call OpenAI API
-        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        # Use Hybrid AI Service (Gemini for events/real-time, GPT for complex reasoning)
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": request.message}
+        ]
 
-        response = client.chat.completions.create(
-            model=settings.CHAT_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": request.message}
-            ],
-            max_tokens=500,
-            temperature=0.7
-        )
+        # Use hybrid AI service if available, otherwise fallback to OpenAI
+        print(f"DEBUG: hybrid_ai_service available: {hybrid_ai_service is not None}")
+        if hybrid_ai_service:
+            response = await hybrid_ai_service.chat_completion(
+                messages=messages,
+                temperature=0.7,
+                max_tokens=500,
+                context={"profile_data": profile_data}
+            )
+            ai_response = response["content"]
+            tokens_used = response["tokens"]
+            cost = response["cost"]
+            model_info = f"{response.get('provider', 'unknown')} ({response.get('model', 'unknown')})"
+            logger.info(f"Hybrid AI used: {model_info} - {response.get('routing_reason', 'No reason')}")
+        else:
+            # Fallback to direct OpenAI
+            from openai import OpenAI
+            client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
-        ai_response = response.choices[0].message.content
+            response = client.chat.completions.create(
+                model=settings.CHAT_MODEL,
+                messages=messages,
+                max_tokens=500,
+                temperature=0.7
+            )
+
+            ai_response = response.choices[0].message.content
+            tokens_used = response.usage.total_tokens if response.usage else 500
+            cost = 0.001
+            model_info = "openai_fallback"
+
+        # Search for real-time events if user is asking about them
+        real_time_events = await search_real_time_events(request.message, profile_data)
+        response_message = ai_response
+
+        # Check if this is a time-specific query that should only show real-time events
+        message_lower = request.message.lower()
+        real_time_only_keywords = [
+            'tomorrow', 'today', 'tonight', 'this evening',
+            'this weekend', 'weekend', 'next week', 'this month',
+            'what can i do tomorrow', 'what can i do today',
+            'what can i do this weekend', 'what\'s happening tomorrow',
+            'what\'s happening today', 'what\'s happening this weekend'
+        ]
+
+        is_real_time_only_query = any(keyword in message_lower for keyword in real_time_only_keywords)
+
+        if real_time_events:
+            # Add events as formatted text to the response
+            events_text = format_events_as_text(real_time_events)
+            if is_real_time_only_query:
+                response_message = events_text  # Replace AI response with just events for time-specific queries
+            else:
+                response_message += events_text  # Append events to AI response for general queries
+            print(f"Added {len(real_time_events)} real-time events to response text")
 
         return EnhancedChatResponse(
-            message=ai_response,
+            message=response_message,
             intent="general_chat",
             confidence=0.9,
             actions=[],
             suggested_strings=[],
             suggested_connections=[],
             suggested_joins=[],
-            tokens=response.usage.total_tokens if response.usage else 500,
-            cost=0.001
+            tokens=tokens_used,
+            cost=cost
         )
 
     except Exception as e:
@@ -1344,12 +1947,33 @@ async def lifestring_ai_chat(
         token = credentials.credentials
         user_id = get_user_id_from_token(token)
 
-        # Get current user
-        current_user = db.query(User).filter(User.user_id == user_id).first()
-        if not current_user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+        # Check if database is available
+        current_user = None
+        if db is not None:
+            try:
+                # Get current user from database
+                current_user = db.query(User).filter(User.user_id == user_id).first()
+            except Exception as db_error:
+                logger.warning(f"Database query failed, proceeding without DB: {db_error}")
+                db = None
+
+        # If database is not available or user not found in DB, proceed with profile data from request
+        if db is None or current_user is None:
+            logger.info("Database not available or user not found, using profile data from request")
+            # Use the same logic as the public endpoint but convert response format
+            public_response = await lifestring_ai_chat_public(request)
+
+            # Convert SimpleChatResponse to EnhancedChatResponse format
+            return EnhancedChatResponse(
+                message=public_response.message,
+                intent=public_response.intent,
+                confidence=public_response.confidence,
+                actions=[],
+                suggested_strings=[],
+                suggested_connections=[],
+                suggested_joins=public_response.joins,  # Convert joins to suggested_joins
+                tokens=public_response.tokens,
+                cost=public_response.cost
             )
 
         # Find or create AI chat room for this user
@@ -1439,24 +2063,137 @@ async def lifestring_ai_chat(
 
         # Handle time requests
         if any(keyword in message_lower for keyword in ['time', 'clock', 'what time', 'current time']):
-            from datetime import datetime
-            import pytz
+            from app.services.realtime_service import realtime_service
 
-            # Default to UTC, but could be enhanced with user timezone
-            current_time = datetime.now(pytz.UTC)
-            time_str = current_time.strftime("%I:%M %p UTC on %B %d, %Y")
+            # Get user's location from profile data for timezone detection
+            user_location = None
+            if profile_data:
+                user_location = profile_data.get('location')
+
+            # Get time information, extracting location from message if specified
+            time_info = await realtime_service.get_time_for_location_query(request.message, user_location)
+
+            # Build response based on whether it's a specific location query
+            if time_info.get('is_specific_query'):
+                query_location = time_info.get('query_location')
+                time_str = f"{time_info['current_time']} on {time_info['current_date']}"
+                message = f"The current time in {query_location} is {time_str}."
+            else:
+                time_str = f"{time_info['current_time']} on {time_info['current_date']}"
+                message = f"The current time is {time_str}."
 
             return EnhancedChatResponse(
-                message=f"The current time is {time_str}.",
+                message=message,
                 intent="time_inquiry",
                 confidence=0.95,
                 actions=[],
                 suggested_strings=[],
                 suggested_connections=[],
                 suggested_joins=[],
-                tokens=len(f"The current time is {time_str}.".split()),
+                tokens=len(message.split()),
                 cost=0.0001
             )
+
+        # Handle sports/events queries with enhanced real-time data
+        sports_keywords = ['nba games', 'nfl games', 'mlb games', 'nhl games', 'games today', 'games tonight', 'sports', 'basketball games', 'football games', 'baseball games', 'hockey games']
+        if any(keyword in message_lower for keyword in sports_keywords):
+            from app.services.realtime_service import realtime_service
+
+            # Determine sport type from message
+            sport_type = None
+            if 'nba' in message_lower or 'basketball' in message_lower:
+                sport_type = 'nba'
+            elif 'nfl' in message_lower or 'football' in message_lower:
+                sport_type = 'nfl'
+            elif 'mlb' in message_lower or 'baseball' in message_lower:
+                sport_type = 'mlb'
+            elif 'nhl' in message_lower or 'hockey' in message_lower:
+                sport_type = 'nhl'
+
+            try:
+                sports_events = await realtime_service.get_sports_events(sport_type, limit=5)
+
+                if sports_events and sports_events[0].get('event_type') != 'sports_fallback':
+                    # Format real sports data
+                    events_text = ""
+                    live_games = []
+                    upcoming_games = []
+                    completed_games = []
+
+                    for event in sports_events:
+                        status = event.get('status', '').lower()
+                        if status in ['in', 'live']:
+                            live_games.append(event)
+                        elif status in ['final', 'completed']:
+                            completed_games.append(event)
+                        else:
+                            upcoming_games.append(event)
+
+                    # Build response with live games first
+                    if live_games:
+                        events_text += "🔴 **LIVE GAMES:**\n"
+                        for event in live_games:
+                            events_text += f"• {event['title']}: {event['description']}\n"
+                        events_text += "\n"
+
+                    if upcoming_games:
+                        events_text += "📅 **UPCOMING GAMES:**\n"
+                        for event in upcoming_games:
+                            events_text += f"• {event['title']}: {event['description']}\n"
+                        events_text += "\n"
+
+                    if completed_games:
+                        events_text += "✅ **RECENT RESULTS:**\n"
+                        for event in completed_games[:2]:  # Limit recent results
+                            events_text += f"• {event['title']}: {event['description']}\n"
+
+                    sport_name = sport_type.upper() if sport_type else "sports"
+                    response_message = f"Here are the current {sport_name} games:\n\n{events_text.strip()}\n\nFor more details, check ESPN.com or your favorite sports app!"
+
+                    return EnhancedChatResponse(
+                        message=response_message,
+                        intent="sports_inquiry",
+                        confidence=0.95,
+                        actions=[],
+                        suggested_strings=[],
+                        suggested_connections=[],
+                        suggested_joins=[],
+                        tokens=len(response_message.split()),
+                        cost=0.0001
+                    )
+                else:
+                    # Fallback response
+                    sport_name = sport_type.upper() if sport_type else "sports"
+                    fallback_message = f"I don't see any {sport_name} games scheduled right now. For the latest schedules and scores, I recommend checking ESPN.com, the official league apps, or your local sports channels!"
+
+                    return EnhancedChatResponse(
+                        message=fallback_message,
+                        intent="sports_inquiry",
+                        confidence=0.8,
+                        actions=[],
+                        suggested_strings=[],
+                        suggested_connections=[],
+                        suggested_joins=[],
+                        tokens=len(fallback_message.split()),
+                        cost=0.0001
+                    )
+
+            except Exception as e:
+                logger.error(f"Error fetching sports events: {e}")
+                sport_name = sport_type.upper() if sport_type else "sports"
+                error_message = f"I'm having trouble getting the latest {sport_name} information right now. Please check ESPN.com or your favorite sports app for current games and schedules!"
+
+                return EnhancedChatResponse(
+                    message=error_message,
+                    intent="sports_inquiry",
+                    confidence=0.7,
+                    actions=[],
+                    suggested_strings=[],
+                    suggested_connections=[],
+                    suggested_joins=[],
+                    tokens=len(error_message.split()),
+                    cost=0.0001
+                )
 
         # Handle profile-specific queries
         if "passions" in message_lower or "interests" in message_lower or "hobbies" in message_lower:
@@ -1547,36 +2284,45 @@ async def lifestring_ai_chat(
         # For other messages, use enhanced OpenAI with real-time capabilities and personalized context
         from datetime import datetime
         import json
+        from app.services.realtime_service import realtime_service
 
-        # Build comprehensive personalized system prompt with current time
-        current_time = datetime.now()
-        system_prompt = f"""You are Strings, Lifestring's AI assistant. The current time is {current_time.strftime('%H:%M UTC, %I:%M %p %Z')} on {current_time.strftime('%A, %B %d, %Y')}.
+        # Get user's location from profile data for timezone detection
+        user_location = None
+        if profile_data:
+            user_location = profile_data.get('location')
+
+        # Get current time in user's timezone
+        time_info = await realtime_service.get_current_time(user_location)
+        system_prompt = f"""You are Strings, Lifestring's AI assistant. The current time is {time_info['current_time']} on {time_info['current_date']}.
 
 You are having a conversation with a user on Lifestring. Here's how Lifestring works:
 
 **YOU ARE STRINGS**: You are the AI that users chat with about what they want to do and who they want to meet.
 
-**JOINS**: These are specific events/activities with set times and locations that users can join. When users tell you what they want to do, look for relevant Joins and recommend them.
+**JOINS**: These are ongoing interest-based groups/communities where people with shared interests connect and organize activities together. Joins are integrated directly into the main Strings interface - there is NO separate "Joins section". When users ask about finding groups or communities, recommend ONE relevant Join they can find in their main Strings feed.
 
 **CONNECTIONS**: This is how users find friends - they get recommended people based on interests, location, and age. When users want to meet people, direct them to check their Connections.
 
+**IMPORTANT UI STRUCTURE**:
+- Joins are NOT in a separate section - they appear as cards in the main Strings interface
+- NEVER say "you can find this event under the Joins section" or similar
+- Instead say "you can find this event in your Strings feed" or "look for this in your main Strings interface"
+
 **YOUR APPROACH**:
 1. Answer general questions naturally (weather, time, jokes, etc.) using real-time data - but ONLY respond with time when specifically asked "what time is it"
-2. When users tell you what they want to do or activities they're interested in, recommend relevant Joins they can participate in
+2. When users ask about finding groups, communities, or people with shared interests, recommend ONE relevant Join they can find in their Strings feed
 3. When users want to meet people or make friends, direct them to their Connections where they'll find recommended people
 4. Have natural conversations about their interests and goals
 5. NEVER mention external platforms like Meetup, Facebook, etc.
-6. Focus on Lifestring's features: Joins for activities, Connections for meeting people
+6. Focus on Lifestring's features: Joins for communities, Connections for meeting people
+7. NEVER mention a "Joins section" - joins are integrated into the main Strings interface
+8. ONLY suggest ONE Join when user asks for groups, communities, or shared interest activities
+9. When suggesting a Join, ALWAYS mention the specific group name, what it's about, and include details about the creator so users can connect with them
+10. Format Join suggestions like: "I'd recommend the [Group Name] in [Location]. This is a community for [description]. It was created by [Creator Name], who [creator bio/background]. You can find this group in your Strings feed."
+11. ALWAYS match Join suggestions to user's location - Salt Lake City gets Utah groups, San Francisco gets Bay Area groups
+12. SPECIAL RULE FOR HIKING: When users ask about "finding people who like hiking" or similar, ALWAYS suggest a hiking group join and provide full details about the group creator
 
-**SAMPLE JOINS TO RECOMMEND** (intelligently match based on user interests):
-- Outdoor Adventures: "Weekend Hiking Adventure - Mount Tamalpais" (intermediate level, Bay Area trails)
-- Culinary Experiences: "Italian Pasta Making Class" (hands-on learning, all skill levels)
-- Creative Activities: "Golden Gate Bridge Photography Walk" (capture stunning views)
-- Active Sports: "Beach Volleyball Tournament" (Ocean Beach, team-based fun)
-- Intellectual Pursuits: "Sci-Fi Book Club Discussion" (monthly meetings, great discussions)
-- Wellness & Mindfulness: "Yoga in the Park" (Golden Gate Park, peaceful mornings)
-- Social Experiences: "Napa Valley Wine Tasting Trip" (weekend adventure, 21+ only)
-- Fitness Challenges: "Indoor Rock Climbing/Bouldering" (beginner-friendly, equipment provided)
+**IMPORTANT**: When users ask about groups or communities on Lifestring, you will be provided with specific join recommendations in the system prompt. Prioritize recommending these specific joins. However, when users ask about real-time events, activities, or things happening in specific locations, you can use your Google Search capabilities to provide current, accurate information about events, activities, and happenings in their requested location.
 
 **SMART CATEGORIZATION**: Automatically understand activity types from context:
 - Hiking, camping, surfing → Outdoor Adventures
@@ -1587,6 +2333,13 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
 - Yoga, meditation, wellness → Wellness & Mindfulness
 - Parties, meetups, social events → Social Experiences
 - Gym, climbing, fitness classes → Fitness Challenges
+
+**PROFILE UPDATES**: You can help users update their profile information directly from the chat. When users mention:
+- New hobbies or interests: Use add_hobbies or add_interests functions
+- Moving to a new location: Use update_profile_location function
+- New skills they've learned: Use add_skills function
+- Want to update their bio: Use update_bio function
+Always confirm the update was successful and be natural about it.
 
 **REMEMBER**: You are Strings - the conversational AI. Users chat with you, and you help them discover Joins and Connections on Lifestring."""
 
@@ -1661,6 +2414,32 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
             role = "assistant" if str(msg.user_id) == settings.AI_BOT_USER_ID else "user"
             messages.append({"role": role, "content": msg.content})
 
+        # Extract potential joins from user message to include in system prompt
+        potential_joins = extract_joins_from_response("", request.message, profile_data)
+        logger.info(f"🔍 AUTHENTICATED ENDPOINT - Found {len(potential_joins) if potential_joins else 0} potential joins")
+        if potential_joins:
+            join_info = potential_joins[0]  # Only use the first/most relevant join
+            logger.info(f"🔍 AUTHENTICATED ENDPOINT - Using join: {join_info['title']} by {join_info['user']['name']}")
+            system_prompt += f"""
+
+**RECOMMENDED JOIN FOR THIS CONVERSATION:**
+You should recommend the "{join_info['title']}" group in {join_info['location']}.
+- Description: {join_info['description']}
+- Created by: {join_info['user']['name']} - {join_info['user']['bio']}
+- Location: {join_info['location']}
+- Current members: {join_info['current_participants']}/{join_info['max_participants']}
+
+CRITICAL INSTRUCTION: The user is asking about finding people with shared interests. You MUST respond by recommending the specific group above. Use this exact format:
+
+"I'd recommend checking out the {join_info['title']} group! It was created by {join_info['user']['name']}."
+
+DO NOT mention "Strings feed" or any other location - the join card will appear directly below your message.
+DO NOT include the full bio in your text response - the join card will display that information.
+DO NOT mention Connections feature. DO NOT give generic advice. ALWAYS mention the specific group name and creator name only."""
+
+            # Update the system message in the messages array with the modified prompt
+            messages[0] = {"role": "system", "content": system_prompt}
+
         # Add current user message
         messages.append({"role": "user", "content": request.message})
 
@@ -1685,8 +2464,8 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
                 function_name = tool_call["function"]["name"]
                 arguments = json.loads(tool_call["function"]["arguments"])
 
-                # Execute the function
-                function_result = await realtime_service.execute_function(function_name, arguments) if realtime_service else {"error": "Real-time service not available"}
+                # Execute the function (pass user_id and token for profile updates)
+                function_result = await realtime_service.execute_function(function_name, arguments, user_id, token) if realtime_service else {"error": "Real-time service not available"}
 
                 # Add function result to messages
                 messages.append({
@@ -1720,14 +2499,17 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
         else:
             ai_response = response["content"]
 
-        # Save AI response to conversation history
-        ai_message = Message(
-            room_id=ai_room.id,
-            user_id=settings.AI_BOT_USER_ID,
-            content=ai_response
-        )
-        db.add(ai_message)
-        db.commit()
+        # Save AI response to conversation history (with error handling)
+        try:
+            ai_message = Message(
+                room_id=ai_room.id,
+                user_id=settings.AI_BOT_USER_ID,
+                content=ai_response
+            )
+            db.add(ai_message)
+            db.commit()
+        except Exception as e:
+            logger.error(f"Error saving AI message to database (non-critical): {e}")
 
         # Update conversation memory with user preferences (async, don't block response)
         # Skip if database is not available
@@ -1736,7 +2518,15 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
                 from app.services.conversation_memory_service import conversation_memory_service
                 await conversation_memory_service.update_user_memory(db, user_id, str(ai_room.id), profile_data or {})
         except Exception as e:
-            print(f"Error updating conversation memory (non-critical): {e}")
+            logger.error(f"Error updating conversation memory (non-critical): {e}")
+
+        # Extract joins for the response (same logic as public endpoint)
+        logger.info(f"🔍 AUTHENTICATED ENDPOINT - About to extract joins from message: {request.message}")
+        logger.info(f"🔍 AUTHENTICATED ENDPOINT - Profile data available: {profile_data is not None}")
+        joins = extract_joins_from_response(ai_response, request.message, profile_data)
+        logger.info(f"🎯 Authenticated endpoint extracted {len(joins) if joins else 0} joins")
+        if joins:
+            logger.info(f"🎯 First join: {joins[0]['title']} by {joins[0]['user']['name']}")
 
         return EnhancedChatResponse(
             message=ai_response,
@@ -1745,7 +2535,7 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
             actions=[],
             suggested_strings=[],
             suggested_connections=[],
-            suggested_joins=[],
+            suggested_joins=joins,
             tokens=response.get("tokens", 500),
             cost=response.get("cost", 0.001)
         )
@@ -1866,14 +2656,22 @@ async def execute_ai_action(
     return result
 
 
-def build_system_prompt(user: User, context: Dict[str, Any]) -> str:
+async def build_system_prompt(user: User, context: Dict[str, Any]) -> str:
     """Build system prompt with user context and detailed profile data."""
     import datetime
+    import pytz
+    from app.services.realtime_service import realtime_service
 
-    # Get current time information
-    now = datetime.datetime.now()
-    current_time = now.strftime("%I:%M %p")
-    current_date = now.strftime("%A, %B %d, %Y")
+    # Get user's location for timezone detection
+    user_location = None
+    profile = context.get('profile', {})
+    if profile and profile.get('location'):
+        user_location = profile['location']
+
+    # Get current time in user's timezone
+    time_info = await realtime_service.get_current_time(user_location)
+    current_time = time_info["current_time"]
+    current_date = time_info["current_date"]
 
     prompt_parts = [
         "You are a helpful AI assistant for Lifestring, a social networking platform.",
@@ -1962,4 +2760,83 @@ def build_system_prompt(user: User, context: Dict[str, Any]) -> str:
     prompt_parts.append("Be friendly, helpful, and concise.")
 
     return " ".join(prompt_parts)
+
+
+@router.post("/ai/test-profile-update", response_model=dict)
+async def test_profile_update():
+    """Test endpoint for profile update functionality."""
+    try:
+        from app.services.realtime_service import realtime_service
+
+        # Test adding hobbies
+        result = await realtime_service.execute_function(
+            "add_hobbies",
+            {"hobbies": ["photography", "reading"]},
+            user_id="test-user-id",
+            token="test-token"
+        )
+
+        return {
+            "success": True,
+            "result": result,
+            "available_functions": [func["function"]["name"] for func in realtime_service.get_available_functions()]
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
+
+
+@router.post("/ai/test-profile-ai", response_model=dict)
+async def test_profile_ai():
+    """Test AI recognition of profile update requests."""
+    try:
+        from app.services.hybrid_ai_service import hybrid_ai_service
+
+        # Test messages that should trigger profile updates
+        test_messages = [
+            "I love photography and want to add it to my hobbies",
+            "I moved to Seattle",
+            "I'm interested in rock climbing",
+            "I learned Python programming",
+            "Update my bio to say I'm a software engineer"
+        ]
+
+        results = []
+        for message in test_messages:
+            # Use hybrid AI service to see if it would call profile functions
+            messages = [
+                {"role": "system", "content": "You are a helpful AI assistant that can update user profiles."},
+                {"role": "user", "content": message}
+            ]
+
+            response = await hybrid_ai_service.chat_completion(
+                messages=messages,
+                context={
+                    "profile_data": {
+                        "location": "Salt Lake City, UT",
+                        "name": "Phoebe Troup-Galligan",
+                        "passions": ["hiking", "climbing", "boating"]
+                    }
+                }
+            )
+
+            results.append({
+                "message": message,
+                "response": response.get("content", ""),
+                "function_calls": response.get("function_calls", [])
+            })
+
+        return {
+            "success": True,
+            "test_results": results
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
 
