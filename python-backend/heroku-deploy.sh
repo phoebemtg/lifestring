@@ -33,7 +33,7 @@ heroku config:set ENVIRONMENT=production --app $APP_NAME
 heroku config:set PORT=8080 --app $APP_NAME
 heroku config:set OPENAI_API_KEY=placeholder --app $APP_NAME
 heroku config:set SUPABASE_URL=https://bkaiuwzwepdxdwhznwbt.supabase.co --app $APP_NAME
-heroku config:set SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJrYWl1d3p3ZXBkeGR3aHpud2J0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkyNzA5ODUsImV4cCI6MjA2NDg0Njk4NX0.Q953wm_r9oy-improved.sh --app $APP_NAME
+heroku config:set SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJrYWl1d3p3ZXBkeGR3aHpud2J0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkyNzA5ODUsImV4cCI6MjA2NDg0Njk4NX0.Q953wm_r9CPPYHpZmaE8v2kJQoiByCXpyxzYLskthkA --app $APP_NAME
 
 # Add git remote if it doesn't exist
 if ! git remote get-url heroku &> /dev/null; then
