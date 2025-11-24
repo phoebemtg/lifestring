@@ -167,15 +167,15 @@ const LandingPage = ({
   {getLandingBackground()}
   <div className="max-w-4xl mx-auto px-8 lg:px-12 text-center">
     <h1 className="text-4xl md:text-6xl font-bold font-sans mb-4 leading-tight tracking-tight text-accent">
-      The AI Powering a new era of connection
+      The AI powering a new era of connection
     </h1>
     <h2 className="text-2xl md:text-3xl font-semibold font-sans mb-8 leading-tight tracking-tight text-foreground">
-    Transforming the way we connect
+      Transforming the way you connect
     </h2>
     <p className="text-base md:text-lg text-muted-foreground leading-relaxed font-light max-w-3xl mx-auto mb-12">
-      Lifestring makes making new friends and connecting with people like you easy. 
+      Lifestring makes making new friends and connecting with people like you easy.
     </p>
-           
+
     <div className="flex flex-col sm:flex-row gap-4 justify-center">
       <Button size="lg" className="px-8 py-4 text-lg font-medium h-14" onClick={onStartJourney} aria-label="Create your LifeString account">
         Create Account
@@ -189,13 +189,13 @@ const LandingPage = ({
         <div className="max-w-5xl mx-auto px-8 lg:px-12">
           <div className="text-center max-w-4xl mx-auto">
             <h2 className="text-4xl md:text-5xl font-bold font-sans text-foreground mb-8">Download The App</h2>
-            
+
             <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
               <a href="#" className="inline-flex items-center px-8 py-4 bg-foreground text-background rounded-lg font-medium text-lg hover:opacity-90 transition-opacity" aria-label="Download on the App Store">
                 <svg className="w-6 h-6 mr-3" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+                  <path d="M18.71,19.5C17.88,20.74 17,21.95 15.66,21.97C14.32,22 13.89,21.18 12.37,21.18C10.84,21.18 10.37,21.95 9.1,22C7.79,22.05 6.8,20.68 5.96,19.47C4.25,17 2.94,12.45 4.7,9.39C5.57,7.87 7.13,6.91 8.82,6.88C10.1,6.86 11.32,7.75 12.11,7.75C12.89,7.75 14.37,6.68 15.92,6.84C16.57,6.87 18.39,7.1 19.56,8.82C19.47,8.88 17.39,10.1 17.41,12.63C17.44,15.65 20.06,16.66 20.09,16.67C20.06,16.74 19.67,18.11 18.71,19.5M13,3.5C13.73,2.67 14.94,2.04 15.94,2C16.07,3.17 15.6,4.35 14.9,5.19C14.21,6.04 13.07,6.7 11.95,6.61C11.8,5.46 12.36,4.26 13,3.5Z" />
                 </svg>
-                Download for iOS
+                Download on iOS
               </a>
               <a href="#" className="inline-flex items-center px-8 py-4 bg-foreground text-background rounded-lg font-medium text-lg hover:opacity-90 transition-opacity" aria-label="Get it on Google Play">
                 <svg className="w-6 h-6 mr-3" viewBox="0 0 24 24" fill="currentColor">
@@ -216,128 +216,16 @@ const LandingPage = ({
               About LifeString
             </h2>
             <div className="space-y-6 text-xl text-gray-600 leading-relaxed font-light max-w-4xl mx-auto">
-              <p>Lifestring is an AI that connects you with people like you. </p>
-              <p>We all want to find friends who are like us and find people to do things with. On lifestring we have made this search for connection as simple as asking. Our AI models are trained to find you the friends, groups and activites that will better your life.</p>
+              <p>Lifestring is an AI that connects you with people like you.</p>
+              <p>We all want to find friends who are like us—and people to do things with.</p>
+              <p>On Lifestring, we've made this as simple as asking.</p>
+              <p>Lifestring helps you find friends like you and people for activities, whether that's founding a company, doing a hobby, or traveling around the world.</p>
+              <p>Our AI gets to know you, so it can connect you with people, places, and things to do.</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="bg-background pt-1 pb-4 lg:pt-1.5 lg:pb-6">
-        <div className="max-w-5xl mx-auto px-8 lg:px-12">
-          <div className="flex justify-center">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-60 transform translate-x-[-60px]">
-            <Card className="text-center p-6 aspect-square h-80 flex items-center justify-center">
-              <CardContent className="flex flex-col items-center justify-center h-full space-y-4 p-0">
-                <div className="bg-muted rounded-full w-16 h-16 flex items-center justify-center mx-auto">
-                  <Link2 className="h-8 w-8 text-accent" />
-                </div>
-                <h3 className="text-lg font-semibold font-sans text-foreground">Joins</h3>
-                <p className="text-muted-foreground leading-relaxed text-sm line-clamp-4 font-sans">Post Activities that you want to do and our AI will connect you with people who want to do something similar </p>
-              </CardContent>
-            </Card>
-            
-            <Card className="text-center p-6 aspect-square h-80 flex items-center justify-center">
-              <CardContent className="flex flex-col items-center justify-center h-full space-y-4 p-0">
-                <div className="bg-muted rounded-full w-16 h-16 flex items-center justify-center mx-auto">
-                  <Infinity className="h-8 w-8 text-accent" />
-                </div>
-                <h3 className="text-lg font-semibold font-sans text-foreground">Strings</h3>
-                <p className="text-muted-foreground leading-relaxed text-sm line-clamp-4 font-sans">
-                  Interact with our Strings AI and connect with new friends.
-                </p>
-              </CardContent>
-            </Card>
-            
-            <Card className="text-center p-6 aspect-square h-80 flex items-center justify-center">
-              <CardContent className="flex flex-col items-center justify-center h-full space-y-4 p-0">
-                <div className="bg-muted rounded-full w-16 h-16 flex items-center justify-center mx-auto">
-                  <User className="h-8 w-8 text-accent" />
-                </div>
-                <h3 className="text-lg font-semibold font-sans text-foreground">Connections</h3>
-                <p className="text-muted-foreground leading-relaxed text-sm line-clamp-4 font-sans">
-                  Our AI will find people like you and connect them with you.
-                </p>
-              </CardContent>
-            </Card>
-            </div>
-          </div>
-        </div>
-      </section>
-
-
-      {/* Personality Discovery Section */}
-      
-
-      {/* Our Story Section */}
-      
-
-      {/* Footer */}
-      <footer className="bg-background border-t border-border text-foreground" role="contentinfo">
-        <div className="max-w-5xl mx-auto px-8 lg:px-12 py-16">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="col-span-1 md:col-span-2">
-              <img src={lifestringLogo} alt="LifeString Logo" className="h-[150px] w-auto object-cover object-[center_75%] mb-4" />
-            </div>
-            
-            <div>
-              <h3 className="text-lg font-semibold font-sans mb-6">Resources</h3>
-              <ul className="space-y-3">
-                <li>
-                  <Link to="/blog" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Blog
-                  </Link>
-                </li>
-                <li>
-                  <button onClick={onStartJourney} className="text-muted-foreground hover:text-foreground transition-colors">
-                    Create an Account
-                  </button>
-                </li>
-                <li>
-                  <button onClick={onSignIn} className="text-muted-foreground hover:text-foreground transition-colors">
-                    Sign In
-                  </button>
-                </li>
-                <li>
-                  <a href="mailto:hello@lifestring.ai" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Contact
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-          
-          <div className="mt-16 pt-8 border-t border-border">
-            <div className="text-center">
-              <h3 className="text-lg font-semibold font-sans mb-8">Follow Us</h3>
-              <div className="flex justify-center space-x-8 mb-12">
-                <a href="https://instagram.com/lifestringai" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
-                  <Instagram className="h-8 w-8" />
-                  <span className="sr-only">Instagram</span>
-                </a>
-                <a href="https://www.tiktok.com/@lifestringai" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
-                  <svg className="h-8 w-8" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" />
-                  </svg>
-                  <span className="sr-only">TikTok</span>
-                </a>
-              </div>
-            </div>
-          </div>
-          
-          <div className="border-t border-border pt-8 flex flex-col md:flex-row justify-between items-center">
-            <p className="text-muted-foreground">
-              © 2025 LifeString. All rights reserved.
-            </p>
-            <div className="flex space-x-8 mt-4 md:mt-0">
-              <Link to="/terms" className="text-muted-foreground hover:text-foreground transition-colors">
-                Terms of Service
-              </Link>
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>;
 };
 export default LandingPage;
