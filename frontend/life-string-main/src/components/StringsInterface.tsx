@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -66,12 +66,30 @@ interface GroupChatData {
   created_at: string;
 }
 
+interface PersonData {
+  id: string;
+  name: string;
+  bio?: string;
+  location?: string;
+  avatar?: string;
+  interests?: string[];
+  skills?: string[];
+  match_score?: number;
+  mutual_connections?: number;
+  recent_activity?: string;
+  created_join?: {
+    id: string;
+    title: string;
+  };
+}
+
 interface ChatMessage {
   type: 'user' | 'ai';
   content: string;
   timestamp: Date;
   joins?: JoinData[];
   groupChats?: GroupChatData[];
+  people?: PersonData[];
 }
 
 const StringsInterface: React.FC<StringsInterfaceProps> = ({
@@ -386,11 +404,25 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
     }
   }, [user]);
 
-  // Auto-scroll to bottom when new messages are added
+  // Optimized auto-scroll with debouncing to reduce glitches
   useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
+    const scrollToBottom = () => {
+      if (chatContainerRef.current) {
+        const container = chatContainerRef.current;
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+
+        // Only auto-scroll if user is near the bottom (not manually scrolled up)
+        if (isNearBottom) {
+          requestAnimationFrame(() => {
+            container.scrollTop = container.scrollHeight;
+          });
+        }
+      }
+    };
+
+    // Debounce scroll updates to reduce frequency
+    const timeoutId = setTimeout(scrollToBottom, 50);
+    return () => clearTimeout(timeoutId);
   }, [chatMessages]);
 
   // Load conversation when loadConversation prop changes
@@ -541,7 +573,7 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
     await processMessage(message);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!inputValue.trim() || isLoading || isSubmitting) return; // Prevent double submission
 
     setIsSubmitting(true);
@@ -553,7 +585,7 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [inputValue, isLoading, isSubmitting]);
 
   const processMessage = async (userMessage: string) => {
     // We'll add the AI message when we start getting the response
@@ -658,7 +690,7 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
             console.log('🔍 PROFILE QUESTIONS FINAL CHECK:', profileData.profile_questions);
 
             // Call authenticated endpoint directly with proper headers
-            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://lifestring-api-6946562411.us-central1.run.app';
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001';
             const response = await fetch(`${backendUrl}/api/ai/lifestring-chat`, {
               method: 'POST',
               headers: {
@@ -675,6 +707,10 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
             if (response.ok) {
               const data = await response.json();
               aiResponse = data.message;
+              // Handle both response formats: authenticated endpoint uses 'suggested_joins', public uses 'joins'
+              let joins = data.joins || data.suggested_joins || [];
+              let groupChats: GroupChatData[] = data.groupChats || [];
+              let people: PersonData[] = data.people || [];
 
               // Check if the authenticated API returned an error message (fallback response)
               const isErrorResponse = aiResponse && (
@@ -689,6 +725,12 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
               } else {
                 useAuthenticatedAPI = true;
                 console.log('✅ Authenticated API response received:', aiResponse);
+                console.log('🎯 Joins received from authenticated endpoint:', joins);
+
+                // Use people data from backend response
+                console.log('👥 People from backend:', aiResponse.people);
+
+                console.log('👥 People received from authenticated endpoint:', people);
 
                 // Simulate streaming for authenticated response
                 if (aiResponse) {
@@ -698,36 +740,26 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
                   // Add the AI message when we start streaming
                   let actualAiMessageIndex: number;
                   setChatMessages(prev => {
-                    const newMessages = [...prev, { type: 'ai' as const, content: '', timestamp: new Date() }];
+                    const newMessages = [...prev, { type: 'ai' as const, content: '', timestamp: new Date(), joins, groupChats, people }];
                     actualAiMessageIndex = newMessages.length - 1; // The AI message is the last one
                     return newMessages;
                   });
 
-                  let currentText = '';
-
-                  for (let i = 0; i < aiResponse.length; i++) {
-                    currentText += aiResponse[i];
-                    setChatMessages(prev => {
-                      const newMessages = [...prev];
-                      if (newMessages[actualAiMessageIndex]) {
-                        newMessages[actualAiMessageIndex] = {
-                          type: 'ai',
-                          content: currentText,
-                          timestamp: new Date()
-                        };
-                      }
-                      return newMessages;
-                    });
-
-                    // Add delay between characters to simulate realistic typing
-                    // Faster for spaces, slower for punctuation
-                    let delay = 30;
-                    if (aiResponse[i] === ' ') delay = 20;
-                    else if (['.', '!', '?', ','].includes(aiResponse[i])) delay = 150;
-                    else if (aiResponse[i] === '\n') delay = 100;
-
-                    await new Promise(resolve => setTimeout(resolve, delay + Math.random() * 20));
-                  }
+                  // Display response instantly for better performance
+                  setChatMessages(prev => {
+                    const newMessages = [...prev];
+                    if (newMessages[actualAiMessageIndex]) {
+                      newMessages[actualAiMessageIndex] = {
+                        type: 'ai',
+                        content: aiResponse,
+                        timestamp: new Date(),
+                        joins,
+                        groupChats,
+                        people
+                      };
+                    }
+                    return newMessages;
+                  });
                 }
               }
             } else {
@@ -784,7 +816,7 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
         console.log('🎯 userProfile?.name value:', userProfile?.name);
         console.log('🎯 FINAL PROFILE DATA NAME:', profileData.name);
         console.log('🎯 FINAL PROFILE DATA CONTACT_INFO.NAME:', profileData.contact_info.name);
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://lifestring-api-6946562411.us-central1.run.app';
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001';
         console.log('🚀 GPT-5 Backend URL:', backendUrl);
 
         console.log('🚨 FALLBACK API CALL - CONVERSATION HISTORY:', chatMessages.slice(-5));
@@ -804,6 +836,7 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
           const data = await fallbackResponse.json();
           aiResponse = data.message;
           let joins = data.joins || [];
+          let people: PersonData[] = data.people || [];
 
           // TEMPORARY: Add mock joins and group chats for testing until backend is deployed
           let groupChats: GroupChatData[] = [];
@@ -894,8 +927,13 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
             }];
           }
 
+          // Use people data from backend response
+          console.log('👥 People from public API:', aiResponse.people);
+
           console.log('✅ Public API response received:', aiResponse);
           console.log('🎯 Joins received:', joins);
+          console.log('👥 People received:', people);
+          console.log('🔍 User message was:', userMessage);
 
           // Simulate streaming for public response
           if (aiResponse) {
@@ -905,38 +943,26 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
             // Add the AI message when we start streaming
             let actualAiMessageIndex: number;
             setChatMessages(prev => {
-              const newMessages = [...prev, { type: 'ai' as const, content: '', timestamp: new Date(), joins, groupChats }];
+              const newMessages = [...prev, { type: 'ai' as const, content: '', timestamp: new Date(), joins, groupChats, people }];
               actualAiMessageIndex = newMessages.length - 1; // The AI message is the last one
               return newMessages;
             });
 
-            let currentText = '';
-
-            for (let i = 0; i < aiResponse.length; i++) {
-              currentText += aiResponse[i];
-              setChatMessages(prev => {
-                const newMessages = [...prev];
-                if (newMessages[actualAiMessageIndex]) {
-                  newMessages[actualAiMessageIndex] = {
-                    type: 'ai',
-                    content: currentText,
-                    timestamp: new Date(),
-                    joins,
-                    groupChats
-                  };
-                }
-                return newMessages;
-              });
-
-              // Add delay between characters to simulate realistic typing
-              // Faster for spaces, slower for punctuation
-              let delay = 30;
-              if (aiResponse[i] === ' ') delay = 20;
-              else if (['.', '!', '?', ','].includes(aiResponse[i])) delay = 150;
-              else if (aiResponse[i] === '\n') delay = 100;
-
-              await new Promise(resolve => setTimeout(resolve, delay + Math.random() * 20));
-            }
+            // Display response instantly for better performance
+            setChatMessages(prev => {
+              const newMessages = [...prev];
+              if (newMessages[actualAiMessageIndex]) {
+                newMessages[actualAiMessageIndex] = {
+                  type: 'ai',
+                  content: aiResponse,
+                  timestamp: new Date(),
+                  joins,
+                  groupChats,
+                  people
+                };
+              }
+              return newMessages;
+            });
           }
         } else {
           const errorText = await fallbackResponse.text();
@@ -977,9 +1003,13 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
 
   // Handler for messaging the join creator
   const handleMessageCreator = (join: JoinData) => {
+    console.log('🔧 handleMessageCreator called with join:', join);
+    console.log('🔧 Join user data:', join.user);
+
     setIsJoinPreviewOpen(false);
 
-    if (!join.user) {
+    if (!join.user || !join.user.id) {
+      console.log('❌ No user data available for join:', join);
       toast({
         title: "Error",
         description: "Unable to message creator - user information not available.",
@@ -987,6 +1017,11 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
       });
       return;
     }
+
+    console.log('✅ Opening messaging interface with:', {
+      id: join.user.id,
+      name: join.user.name || 'Unknown User'
+    });
 
     // Open messaging interface with the creator
     setMessagingRecipient({
@@ -1016,22 +1051,37 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
     console.log('Join group chat:', chatId);
   };
 
+  // Handlers for people interactions
+  const handleConnectPerson = (personId: string) => {
+    console.log('Connecting with person:', personId);
+    toast({
+      title: "Connection Request Sent!",
+      description: "Your connection request has been sent.",
+    });
+  };
+
+  const handleMessagePerson = (personId: string) => {
+    console.log('Messaging person:', personId);
+    // Open messaging system with this person
+    setMessagingRecipient({ id: personId, name: 'User' }); // You'd get the actual name from the person data
+    setIsMessagingOpen(true);
+  };
+
+  const handleViewPersonProfile = (personId: string) => {
+    console.log('Viewing person profile:', personId);
+    // Navigate to person's profile page
+    // This would typically use React Router to navigate
+    toast({
+      title: "Opening Profile",
+      description: "Navigating to user's profile...",
+    });
+  };
+
   // Handler for closing messaging interface
   const handleCloseMessaging = () => {
     setIsMessagingOpen(false);
     setMessagingRecipient(null);
   };
-
-  // If messaging is open, show messaging interface instead of main chat
-  if (isMessagingOpen && messagingRecipient) {
-    return (
-      <MessagingSystem
-        recipientId={messagingRecipient.id}
-        recipientName={messagingRecipient.name}
-        onBack={handleCloseMessaging}
-      />
-    );
-  }
 
   return (
     <div className="flex flex-col overflow-hidden">
@@ -1081,7 +1131,7 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
             <div className="relative bg-white rounded-full border border-gray-200 shadow-sm mb-6 px-4 py-3 flex items-center space-x-3">
               <Input
                 value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
+                onChange={useCallback((e: React.ChangeEvent<HTMLInputElement>) => setInputValue(e.target.value), [])}
                 placeholder="What are you looking for on LifeString?"
                 className="border-0 focus-visible:ring-0 text-base bg-white flex-1 !text-black"
                 onKeyDown={(e) => {
@@ -1169,6 +1219,12 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
               <div
                 ref={chatContainerRef}
                 className="h-[400px] space-y-4 overflow-y-auto pr-4"
+                style={{
+                  scrollBehavior: 'smooth',
+                  willChange: 'scroll-position',
+                  transform: 'translateZ(0)', // Force hardware acceleration
+                  backfaceVisibility: 'hidden' // Optimize for scrolling
+                }}
               >
                 {chatMessages.map((message, index) => (
                   <ChatMessage
@@ -1177,9 +1233,14 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
                     content={message.content}
                     joins={message.joins}
                     groupChats={message.groupChats}
+                    people={message.people}
                     selectedOrbColor={selectedOrbColor}
                     onJoinActivity={handleViewJoinDetails}
                     onJoinGroupChat={handleJoinGroupChat}
+                    onConnectPerson={handleConnectPerson}
+                    onMessageCreator={handleMessageCreator}
+                    onMessagePerson={handleMessagePerson}
+                    onViewProfile={handleViewPersonProfile}
                   />
                 ))}
 
@@ -1226,7 +1287,7 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
               <div className="relative bg-white rounded-full border border-gray-200 shadow-sm mb-6 px-4 py-3 flex items-center space-x-3">
                 <Input
                   value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
+                  onChange={useCallback((e: React.ChangeEvent<HTMLInputElement>) => setInputValue(e.target.value), [])}
                   placeholder="Continue the conversation..."
                   className="border-0 focus-visible:ring-0 text-base bg-white flex-1 !text-black"
                   onKeyDown={(e) => {
@@ -1296,6 +1357,19 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
           // TODO: Implement actual join functionality
         }}
       />
+
+      {/* Messaging Modal */}
+      {isMessagingOpen && messagingRecipient && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg w-full max-w-4xl h-[80vh] m-4">
+            <MessagingSystem
+              recipientId={messagingRecipient.id}
+              recipientName={messagingRecipient.name}
+              onBack={handleCloseMessaging}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

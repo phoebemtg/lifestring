@@ -1,7 +1,7 @@
 """
 Database configuration and session management.
 """
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
@@ -37,7 +37,7 @@ def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         # Test the connection before yielding
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         yield db
     except Exception as e:
         print(f"Database connection failed: {e}")
@@ -57,7 +57,7 @@ def get_db_optional() -> Generator[Session, None, None]:
     try:
         db = SessionLocal()
         # Test the connection
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         yield db
     except Exception as e:
         print(f"Database connection failed (optional): {e}")

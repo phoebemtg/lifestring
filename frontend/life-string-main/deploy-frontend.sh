@@ -37,6 +37,11 @@ fi
 echo "🌐 Deploying to Vercel..."
 vercel --prod
 
+# Set up custom domain
+echo "🔗 Setting up custom domain..."
+vercel domains add lifestring.ai --yes || echo "Domain already exists"
+vercel alias set $(vercel ls | grep lifestring-frontend | head -1 | awk '{print $2}') lifestring.ai || echo "Alias already set"
+
 if [ $? -eq 0 ]; then
     echo "🎉 Deployment successful!"
     echo "✅ Your changes are now live on lifestring.ai"

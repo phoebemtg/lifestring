@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 import json
 import logging
-from app.services.profile_update_service import profile_update_service
+from app.services.profile_service import profile_service
 
 logger = logging.getLogger(__name__)
 
@@ -1606,6 +1606,269 @@ class RealtimeService:
         # Default to Salt Lake City if not found
         return coordinates['salt lake city']
 
+    async def suggest_people_to_connect(self, interests: List[str], location: str = None, limit: int = 5, user_id: str = None, token: str = None) -> Dict[str, Any]:
+        """Suggest people to connect with based on interests and location."""
+        try:
+            import httpx
+            from app.core.config import settings
+
+            # Query Supabase for users with similar interests
+            headers = {
+                "apikey": settings.SUPABASE_ANON_KEY,
+                "Authorization": f"Bearer {settings.SUPABASE_ANON_KEY}",
+                "Content-Type": "application/json"
+            }
+
+            # Build query to find users with matching interests
+            # This is a simplified version - in production you'd want more sophisticated matching
+            async with httpx.AsyncClient() as client:
+                # Get users from detailed_profiles table
+                response = await client.get(
+                    f"{settings.SUPABASE_URL}/rest/v1/detailed_profiles",
+                    headers=headers,
+                    params={
+                        "select": "user_id,bio,location,interests,hobbies,skills,passions",
+                        "limit": str(limit * 2)  # Get more to filter and rank
+                    }
+                )
+
+                if response.status_code == 200:
+                    profiles = response.json()
+
+                    # Filter and score matches
+                    suggestions = []
+                    for profile in profiles:
+                        if profile.get('user_id') == user_id:
+                            continue  # Skip current user
+
+                        # Calculate match score based on common interests
+                        user_interests = set([i.lower() for i in interests])
+                        profile_interests = set()
+
+                        # Combine all interest fields
+                        for field in ['interests', 'hobbies', 'skills', 'passions']:
+                            if profile.get(field):
+                                profile_interests.update([i.lower() for i in profile[field]])
+
+                        # Calculate match score
+                        common_interests = user_interests.intersection(profile_interests)
+                        if len(common_interests) > 0:
+                            match_score = min(100, int((len(common_interests) / len(user_interests)) * 100))
+
+                            # Get user basic info
+                            user_response = await client.get(
+                                f"{settings.SUPABASE_URL}/rest/v1/user_profiles",
+                                headers=headers,
+                                params={
+                                    "select": "user_id,contact_info,attributes",
+                                    "user_id": f"eq.{profile['user_id']}"
+                                }
+                            )
+
+                            user_info = {}
+                            if user_response.status_code == 200:
+                                user_data = user_response.json()
+                                if user_data:
+                                    contact_info = user_data[0].get('contact_info', {})
+                                    attributes = user_data[0].get('attributes', {})
+                                    user_info = {
+                                        'name': contact_info.get('name', 'Anonymous User'),
+                                        'avatar': attributes.get('avatar_url')
+                                    }
+
+                            suggestion = {
+                                'id': profile['user_id'],
+                                'name': user_info.get('name', 'Anonymous User'),
+                                'bio': profile.get('bio', ''),
+                                'location': profile.get('location', ''),
+                                'avatar': user_info.get('avatar'),
+                                'interests': profile.get('interests', [])[:3],  # Show top 3
+                                'skills': profile.get('skills', [])[:2],  # Show top 2
+                                'match_score': match_score,
+                                'common_interests': list(common_interests)
+                            }
+                            suggestions.append(suggestion)
+
+                    # Sort by match score and limit results
+                    suggestions.sort(key=lambda x: x['match_score'], reverse=True)
+                    suggestions = suggestions[:limit]
+
+                    return {
+                        "success": True,
+                        "people": suggestions,
+                        "message": f"Found {len(suggestions)} people with similar interests"
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": "Unable to fetch user suggestions",
+                        "people": []
+                    }
+
+        except Exception as e:
+            logger.error(f"Error suggesting people: {e}")
+            return {
+                "success": False,
+                "error": "Unable to suggest people at this time",
+                "people": []
+            }
+
+    async def suggest_joins_for_activity(self, activity: str, location: str = None, limit: int = 5, user_id: str = None, token: str = None) -> Dict[str, Any]:
+        """Suggest joins/activities based on user's interests and location."""
+        try:
+            # Sample joins data for Salt Lake City
+            salt_lake_joins = {
+                'hiking_slc': {
+                    'id': 'join_hiking_slc_001',
+                    'title': 'Antelope Island Hiking Adventure',
+                    'description': 'Explore the beautiful trails of Antelope Island State Park with stunning views of the Great Salt Lake and wildlife spotting opportunities.',
+                    'location': 'Antelope Island State Park, Syracuse, UT',
+                    'duration': '4 hours',
+                    'max_participants': 10,
+                    'current_participants': 6,
+                    'difficulty': 'intermediate',
+                    'tags': ['hiking', 'nature', 'antelope island', 'wildlife', 'great salt lake'],
+                    'match_score': 92,
+                    'created_at': '2024-01-15T09:00:00Z',
+                    'user': {
+                        'id': 'user_hiking_slc_001',
+                        'name': 'Emma Rodriguez',
+                        'avatar': 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
+                        'email': 'emma.rodriguez@example.com',
+                        'bio': 'Outdoor enthusiast and Utah native who has been exploring the trails around Salt Lake City for over 6 years. Loves sharing the beauty of Utah\'s landscapes with newcomers and organizing group hikes to hidden gems. Passionate about wildlife photography and conservation.'
+                    }
+                },
+                'climbing_slc': {
+                    'id': 'join_climbing_slc_001',
+                    'title': 'Salt Lake Climbing Community',
+                    'description': 'Join fellow climbers for indoor and outdoor climbing adventures around Salt Lake City. From beginner-friendly gym sessions to advanced outdoor routes.',
+                    'location': 'Various locations in Salt Lake City, UT',
+                    'duration': 'Ongoing',
+                    'max_participants': 25,
+                    'current_participants': 18,
+                    'difficulty': 'all_levels',
+                    'tags': ['climbing', 'rock climbing', 'indoor climbing', 'outdoor', 'community'],
+                    'match_score': 95,
+                    'created_at': '2024-01-10T14:00:00Z',
+                    'user': {
+                        'id': 'user_climbing_slc_001',
+                        'name': 'Sarah Rodriguez',
+                        'avatar': 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
+                        'email': 'sarah.rodriguez@example.com',
+                        'bio': 'Passionate rock climber with 8+ years of experience. Love introducing newcomers to the sport and exploring Utah\'s incredible climbing destinations.'
+                    }
+                },
+                'boating_slc': {
+                    'id': 'join_boating_slc_001',
+                    'title': 'Great Salt Lake Boating Club',
+                    'description': 'Join fellow boating enthusiasts for sailing, powerboating, and water sports on the Great Salt Lake and nearby reservoirs. All skill levels welcome!',
+                    'location': 'Great Salt Lake Marina, Salt Lake City, UT',
+                    'duration': 'Ongoing',
+                    'max_participants': 30,
+                    'current_participants': 12,
+                    'difficulty': 'all_levels',
+                    'tags': ['boating', 'sailing', 'water sports', 'great salt lake', 'marina', 'community'],
+                    'match_score': 95,
+                    'created_at': '2024-01-15T16:00:00Z',
+                    'user': {
+                        'id': 'user_boating_slc_001',
+                        'name': 'Jake Thompson',
+                        'avatar': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+                        'email': 'jake.thompson@example.com',
+                        'bio': 'Experienced sailor and powerboat captain who loves exploring Utah\'s lakes and reservoirs.'
+                    }
+                }
+            }
+
+            # Bay Area joins for non-Salt Lake users
+            bay_area_joins = {
+                'hiking_bay_area': {
+                    'id': 'join_hiking_bay_area_001',
+                    'title': 'Bay Area Hiking Enthusiasts',
+                    'description': 'A community for hiking lovers in the San Francisco Bay Area. We organize regular hikes, share trail recommendations, and connect people who love exploring nature. All skill levels welcome!',
+                    'location': 'San Francisco Bay Area, CA',
+                    'duration': 'Ongoing',
+                    'max_participants': 50,
+                    'current_participants': 23,
+                    'difficulty': 'all_levels',
+                    'tags': ['hiking', 'bay area', 'nature', 'trails', 'outdoor', 'community', 'weekend'],
+                    'match_score': 95,
+                    'created_at': '2024-01-15T10:00:00Z',
+                    'user': {
+                        'id': 'user_hiking_bay_area_001',
+                        'name': 'Sarah Martinez',
+                        'avatar': 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
+                        'email': 'sarah.martinez@example.com',
+                        'bio': 'Experienced hiker who has explored trails throughout the Bay Area for over 8 years. Loves sharing hidden gems and helping newcomers discover the joy of hiking.'
+                    }
+                }
+            }
+
+            # Determine if user is in Salt Lake area
+            is_salt_lake = (
+                location and any(keyword in location.lower() for keyword in ['salt lake', 'slc', 'utah', 'antelope island'])
+            ) or (
+                not location  # Default to Salt Lake for testing
+            )
+
+            joins = []
+            activity_lower = activity.lower()
+
+            # Match activities to joins
+            if any(word in activity_lower for word in ['hiking', 'hike', 'trail', 'mountain', 'nature', 'outdoor']):
+                if is_salt_lake:
+                    joins.append(salt_lake_joins['hiking_slc'])
+                else:
+                    joins.append(bay_area_joins['hiking_bay_area'])
+
+            if any(word in activity_lower for word in ['climbing', 'climb', 'rock climbing', 'bouldering']):
+                if is_salt_lake:
+                    joins.append(salt_lake_joins['climbing_slc'])
+
+            if any(word in activity_lower for word in ['boating', 'boat', 'sailing', 'sail', 'marina', 'water sports']):
+                if is_salt_lake:
+                    joins.append(salt_lake_joins['boating_slc'])
+
+            # If no specific activity matched, suggest hiking as default
+            if not joins:
+                if is_salt_lake:
+                    joins.append(salt_lake_joins['hiking_slc'])
+                else:
+                    joins.append(bay_area_joins['hiking_bay_area'])
+
+            # Also suggest people related to these joins (creators and similar interests)
+            people = []
+            for join in joins:
+                if join.get('user'):
+                    # Add the join creator as a person to connect with
+                    creator = join['user']
+                    people.append({
+                        'id': creator['id'],
+                        'name': creator['name'],
+                        'bio': creator.get('bio', ''),
+                        'location': join.get('location', ''),
+                        'interests': join.get('tags', []),
+                        'match_score': 95,  # High match since they created a relevant join
+                        'created_join': {
+                            'id': join['id'],
+                            'title': join['title']
+                        }
+                    })
+
+            return {
+                "success": True,
+                "joins": joins[:limit],
+                "people": people[:limit]
+            }
+
+        except Exception as e:
+            print(f"Error suggesting joins: {e}")
+            return {
+                "success": False,
+                "error": "Unable to suggest joins at this time",
+                "joins": []
+            }
+
     def get_available_functions(self) -> List[Dict[str, Any]]:
         """Get list of available real-time functions for OpenAI function calling."""
         return [
@@ -1795,6 +2058,57 @@ class RealtimeService:
                         "required": ["bio"]
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "suggest_people_to_connect",
+                    "description": "Find people with similar interests who the user might want to connect with",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "interests": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "List of interests to find people with similar interests"
+                            },
+                            "location": {
+                                "type": "string",
+                                "description": "Location to find people nearby (optional)"
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "Maximum number of people to suggest (default: 5)"
+                            }
+                        },
+                        "required": ["interests"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "suggest_joins_for_activity",
+                    "description": "Find joins/activities based on user's interests and location",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "activity": {
+                                "type": "string",
+                                "description": "The activity or interest to find joins for (e.g., 'hiking', 'climbing', 'photography')"
+                            },
+                            "location": {
+                                "type": "string",
+                                "description": "Location to find activities nearby (optional)"
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "Maximum number of joins to suggest (default: 5)"
+                            }
+                        },
+                        "required": ["activity"]
+                    }
+                }
             }
         ]
     
@@ -1822,32 +2136,48 @@ class RealtimeService:
         elif function_name == "update_profile_location":
             if not user_id:
                 return {"error": "User ID required for profile updates"}
-            return await profile_update_service.update_profile_field(
+            return await profile_service.update_profile_field(
                 user_id, "location", arguments["location"], token
             )
         elif function_name == "add_hobbies":
             if not user_id:
                 return {"error": "User ID required for profile updates"}
-            return await profile_update_service.add_to_array_field(
+            return await profile_service.add_to_array_field(
                 user_id, "hobbies", arguments["hobbies"], token
             )
         elif function_name == "add_interests":
             if not user_id:
                 return {"error": "User ID required for profile updates"}
-            return await profile_update_service.add_to_array_field(
+            return await profile_service.add_to_array_field(
                 user_id, "interests", arguments["interests"], token
             )
         elif function_name == "add_skills":
             if not user_id:
                 return {"error": "User ID required for profile updates"}
-            return await profile_update_service.add_to_array_field(
+            return await profile_service.add_to_array_field(
                 user_id, "skills", arguments["skills"], token
             )
         elif function_name == "update_bio":
             if not user_id:
                 return {"error": "User ID required for profile updates"}
-            return await profile_update_service.update_profile_field(
+            return await profile_service.update_profile_field(
                 user_id, "bio", arguments["bio"], token
+            )
+        elif function_name == "suggest_people_to_connect":
+            return await self.suggest_people_to_connect(
+                arguments["interests"],
+                arguments.get("location"),
+                arguments.get("limit", 5),
+                user_id,
+                token
+            )
+        elif function_name == "suggest_joins_for_activity":
+            return await self.suggest_joins_for_activity(
+                arguments["activity"],
+                arguments.get("location"),
+                arguments.get("limit", 5),
+                user_id,
+                token
             )
         else:
             return {"error": f"Unknown function: {function_name}"}

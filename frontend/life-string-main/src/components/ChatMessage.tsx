@@ -1,6 +1,7 @@
 import React from 'react';
 import JoinCard from './JoinCard';
 import GroupChatCard from './GroupChatCard';
+import PersonCard from './PersonCard';
 
 interface JoinData {
   id: string;
@@ -36,14 +37,36 @@ interface GroupChatData {
   created_at: string;
 }
 
+interface PersonData {
+  id: string;
+  name: string;
+  bio?: string;
+  location?: string;
+  avatar?: string;
+  interests?: string[];
+  skills?: string[];
+  match_score?: number;
+  mutual_connections?: number;
+  recent_activity?: string;
+  created_join?: {
+    id: string;
+    title: string;
+  };
+}
+
 interface ChatMessageProps {
   type: 'user' | 'ai';
   content: string;
   joins?: JoinData[];
   groupChats?: GroupChatData[];
+  people?: PersonData[];
   selectedOrbColor?: string;
   onJoinActivity?: (joinId: string) => void;
   onJoinGroupChat?: (chatId: string) => void;
+  onConnectPerson?: (personId: string) => void;
+  onMessagePerson?: (personId: string) => void;
+  onViewProfile?: (personId: string) => void;
+  onMessageCreator?: (join: JoinData) => void;
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -51,10 +74,60 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   content,
   joins = [],
   groupChats = [],
+  people = [],
   selectedOrbColor,
   onJoinActivity,
-  onJoinGroupChat
+  onJoinGroupChat,
+  onConnectPerson,
+  onMessagePerson,
+  onViewProfile,
+  onMessageCreator
 }) => {
+  // Debug logging
+  console.log('🎭 ChatMessage received people:', people);
+
+  // Debug logging for joins
+  if (type === 'ai' && joins && joins.length > 0) {
+    console.log('🎯 ChatMessage received joins:', joins);
+  }
+  // Function to parse markdown links and convert them to clickable links
+  const parseMarkdownLinks = (text: string) => {
+    // Regex to match markdown links: [text](url)
+    const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = markdownLinkRegex.exec(text)) !== null) {
+      // Add text before the link
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+
+      // Add the clickable link
+      parts.push(
+        <a
+          key={match.index}
+          href={match[2]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 underline"
+        >
+          {match[1]}
+        </a>
+      );
+
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text after the last link
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : [text];
+  };
+
   return (
     <div className={`flex ${type === 'user' ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-[80%] ${
@@ -64,10 +137,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
       }`}
       style={type === 'user' ? { backgroundColor: selectedOrbColor } : {}}
       >
-        {/* Text content */}
+        {/* Text content with clickable links */}
         {content && (
           <p className="text-sm whitespace-pre-wrap leading-relaxed !text-black">
-            {content}
+            {parseMarkdownLinks(content)}
           </p>
         )}
 
@@ -80,6 +153,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                 join={join}
                 compact={true}
                 onViewDetails={onJoinActivity}
+                onMessageCreator={onMessageCreator}
                 className="mb-2"
               />
             ))}
@@ -95,6 +169,24 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                 groupChat={chat}
                 compact={true}
                 onJoinChat={onJoinGroupChat}
+                className="mb-2"
+              />
+            ))}
+          </div>
+        )}
+
+        {/* People cards */}
+        {people && people.length > 0 && (
+          <div className="space-y-2 mt-2">
+            {people.map((person) => (
+              <PersonCard
+                key={person.id}
+                person={person}
+                compact={true}
+                showJoinContext={!!person.created_join}
+                onConnect={onConnectPerson}
+                onMessage={onMessagePerson}
+                onViewProfile={onViewProfile}
                 className="mb-2"
               />
             ))}

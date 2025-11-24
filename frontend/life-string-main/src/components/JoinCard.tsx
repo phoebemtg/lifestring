@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Clock, Star } from "lucide-react";
+import { MapPin, Users, Clock, Star, MessageCircle } from "lucide-react";
 
 interface JoinCardProps {
   join: {
@@ -13,20 +13,24 @@ interface JoinCardProps {
     duration?: string;
     max_participants?: number;
     current_participants?: number;
-    difficulty?: 'beginner' | 'intermediate' | 'advanced';
+    difficulty?: 'beginner' | 'intermediate' | 'advanced' | 'all_levels';
     tags?: string[];
     is_joined?: boolean;
     match_score?: number;
     created_at: string;
     user?: {
+      id?: string;
       name?: string;
       avatar?: string;
+      email?: string;
+      bio?: string;
     };
     url?: string;
     event_type?: string;
   };
   onJoin?: (joinId: string) => void;
   onViewDetails?: (joinId: string) => void;
+  onMessageCreator?: (join: any) => void;
   className?: string;
   compact?: boolean; // New prop for compact chat display
 }
@@ -35,46 +39,48 @@ const JoinCard: React.FC<JoinCardProps> = ({
   join,
   onJoin,
   onViewDetails,
+  onMessageCreator,
   className = "",
   compact = false
 }) => {
   const getDifficultyColor = (difficulty?: string) => {
     switch (difficulty) {
-      case 'beginner': return 'bg-green-100 text-green-800';
-      case 'intermediate': return 'bg-yellow-100 text-yellow-800';
-      case 'advanced': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'beginner': return 'bg-gray-100 text-gray-700 border border-gray-200';
+      case 'intermediate': return 'bg-gray-100 text-gray-700 border border-gray-200';
+      case 'advanced': return 'bg-gray-100 text-gray-700 border border-gray-200';
+      case 'all_levels': return 'bg-gray-100 text-gray-700 border border-gray-200';
+      default: return 'bg-gray-100 text-gray-700 border border-gray-200';
     }
   };
 
   const getActivityCategory = (tags?: string[]) => {
     if (!tags || tags.length === 0) return null;
-    
+
     const tagString = tags.join(' ').toLowerCase();
-    
+
     if (tagString.includes('hiking') || tagString.includes('camping') || tagString.includes('outdoor')) {
-      return { name: 'Outdoor Adventure', color: 'bg-green-50 text-green-700' };
+      return { name: 'Outdoor Adventure', color: 'bg-gray-100 text-gray-700 border border-gray-200' };
     }
     if (tagString.includes('cooking') || tagString.includes('food') || tagString.includes('wine')) {
-      return { name: 'Culinary Experience', color: 'bg-orange-50 text-orange-700' };
+      return { name: 'Culinary Experience', color: 'bg-gray-100 text-gray-700 border border-gray-200' };
     }
     if (tagString.includes('photography') || tagString.includes('art') || tagString.includes('creative')) {
-      return { name: 'Creative Activity', color: 'bg-purple-50 text-purple-700' };
+      return { name: 'Creative Activity', color: 'bg-gray-100 text-gray-700 border border-gray-200' };
     }
-    if (tagString.includes('volleyball') || tagString.includes('sports') || tagString.includes('tennis')) {
-      return { name: 'Active Sports', color: 'bg-blue-50 text-blue-700' };
+    if (tagString.includes('volleyball') || tagString.includes('sports') || tagString.includes('tennis') || tagString.includes('boating') || tagString.includes('sailing')) {
+      return { name: 'Active Sports', color: 'bg-gray-100 text-gray-700 border border-gray-200' };
     }
     if (tagString.includes('book') || tagString.includes('discussion') || tagString.includes('intellectual')) {
-      return { name: 'Intellectual Pursuit', color: 'bg-indigo-50 text-indigo-700' };
+      return { name: 'Intellectual Pursuit', color: 'bg-gray-100 text-gray-700 border border-gray-200' };
     }
     if (tagString.includes('yoga') || tagString.includes('meditation') || tagString.includes('wellness')) {
-      return { name: 'Wellness & Mindfulness', color: 'bg-teal-50 text-teal-700' };
+      return { name: 'Wellness & Mindfulness', color: 'bg-gray-100 text-gray-700 border border-gray-200' };
     }
     if (tagString.includes('climbing') || tagString.includes('fitness') || tagString.includes('workout')) {
-      return { name: 'Fitness Challenge', color: 'bg-red-50 text-red-700' };
+      return { name: 'Fitness Challenge', color: 'bg-gray-100 text-gray-700 border border-gray-200' };
     }
-    
-    return { name: 'Social Experience', color: 'bg-pink-50 text-pink-700' };
+
+    return { name: 'Social Experience', color: 'bg-gray-100 text-gray-700 border border-gray-200' };
   };
 
   const category = getActivityCategory(join.tags);
@@ -96,13 +102,12 @@ const JoinCard: React.FC<JoinCardProps> = ({
   // Compact version for chat messages
   if (compact) {
     return (
-      <Card className={`w-full max-w-sm hover:shadow-md transition-shadow duration-200 cursor-pointer ${className}`}
-            onClick={handleCardClick}>
-        <CardContent className="p-3">
-          <div className="flex items-start justify-between mb-2">
+      <Card className={`w-full max-w-sm hover:shadow-md transition-shadow duration-200 ${className}`}>
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between mb-3">
             <div className="flex-1">
               {category && (
-                <Badge className={`${category.color} border-0 text-xs font-medium mb-1`}>
+                <Badge className={`${category.color} text-xs font-medium mb-2`}>
                   {category.name}
                 </Badge>
               )}
@@ -111,24 +116,24 @@ const JoinCard: React.FC<JoinCardProps> = ({
               </h4>
             </div>
             {join.match_score && join.match_score > 70 && (
-              <Star className="h-3 w-3 text-yellow-500 ml-2 flex-shrink-0" />
+              <Star className="h-4 w-4 text-yellow-500 ml-2 flex-shrink-0" />
             )}
           </div>
 
           {join.description && (
-            <p className="text-gray-600 text-xs mb-2 line-clamp-2">
+            <p className="text-gray-600 text-xs mb-3 line-clamp-2">
               {join.description}
             </p>
           )}
 
           {/* Creator info */}
           {join.user && (
-            <div className="flex items-center mb-2">
+            <div className="flex items-center mb-3">
               <div className="w-6 h-6 rounded-full bg-gray-200 mr-2 overflow-hidden">
                 {join.user.avatar ? (
                   <img src={join.user.avatar} alt={join.user.name} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full bg-blue-500 flex items-center justify-center text-white text-xs font-semibold">
+                  <div className="w-full h-full bg-gray-500 flex items-center justify-center text-white text-xs font-semibold">
                     {join.user.name?.charAt(0) || 'U'}
                   </div>
                 )}
@@ -137,15 +142,14 @@ const JoinCard: React.FC<JoinCardProps> = ({
             </div>
           )}
 
-          <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+          <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
             <div className="flex items-center gap-2">
               {join.location && (
                 <div className="flex items-center gap-1">
                   <MapPin className="h-3 w-3" />
-                  <span className="truncate max-w-[80px]">{join.location}</span>
+                  <span className="truncate max-w-[100px]">{join.location.split(',')[0]}</span>
                 </div>
               )}
-
             </div>
             <div className="flex items-center gap-1">
               <Users className="h-3 w-3" />
@@ -153,20 +157,36 @@ const JoinCard: React.FC<JoinCardProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1">
-              {join.difficulty && (
-                <Badge className={`${getDifficultyColor(join.difficulty)} border-0 text-xs`}>
-                  {join.difficulty}
-                </Badge>
-              )}
-              {join.tags && join.tags.length > 0 && (
-                <Badge variant="outline" className="text-xs bg-gray-50 px-1 py-0">
-                  {join.tags[0]}
-                </Badge>
-              )}
-            </div>
+          {/* Tags */}
+          <div className="flex flex-wrap gap-1 mb-3">
+            {join.difficulty && (
+              <Badge className={`${getDifficultyColor(join.difficulty)} text-xs`}>
+                {join.difficulty}
+              </Badge>
+            )}
+            {join.tags && join.tags.slice(0, 2).map((tag, index) => (
+              <Badge key={index} variant="outline" className="text-xs bg-gray-50 text-gray-600 border-gray-200">
+                {tag}
+              </Badge>
+            ))}
+          </div>
 
+          {/* Action buttons */}
+          <div className="flex gap-2">
+            {join.user && onMessageCreator && (
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMessageCreator(join);
+                }}
+                size="sm"
+                variant="outline"
+                className="flex-1 text-xs px-2 py-1 h-7 border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                <MessageCircle className="h-3 w-3 mr-1" />
+                Message
+              </Button>
+            )}
             <Button
               onClick={(e) => {
                 e.stopPropagation();
@@ -177,9 +197,9 @@ const JoinCard: React.FC<JoinCardProps> = ({
                 }
               }}
               size="sm"
-              className="text-xs px-2 py-1 h-6 bg-blue-600 hover:bg-blue-700 text-white"
+              className="flex-1 text-xs px-2 py-1 h-7 bg-gray-800 hover:bg-gray-900 text-white"
             >
-              {join.event_type === 'real_time_event' ? 'View Event' : 'View Details'}
+              View Details
             </Button>
           </div>
         </CardContent>
@@ -268,12 +288,42 @@ const JoinCard: React.FC<JoinCardProps> = ({
             )}
           </div>
 
-          {/* Action Button */}
-          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-            <div className="text-xs text-gray-400">
-              Created {new Date(join.created_at).toLocaleDateString()}
+          {/* Creator info */}
+          {join.user && (
+            <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+              <div className="w-10 h-10 rounded-full bg-gray-200 mr-3 overflow-hidden">
+                {join.user.avatar ? (
+                  <img src={join.user.avatar} alt={join.user.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-gray-500 flex items-center justify-center text-white text-sm font-semibold">
+                    {join.user.name?.charAt(0) || 'U'}
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">{join.user.name}</p>
+                <p className="text-sm text-gray-600">Join Creator</p>
+              </div>
             </div>
-            
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-2 pt-2 border-t border-gray-100">
+            {join.user && onMessageCreator && (
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMessageCreator(join);
+                }}
+                variant="outline"
+                size="sm"
+                className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                <MessageCircle className="h-4 w-4 mr-2" />
+                Message Creator
+              </Button>
+            )}
+
             <Button
               onClick={(e) => {
                 e.stopPropagation();
@@ -281,13 +331,13 @@ const JoinCard: React.FC<JoinCardProps> = ({
               }}
               size="sm"
               className={`${
-                join.is_joined 
-                  ? 'bg-green-600 hover:bg-green-700' 
-                  : 'bg-blue-600 hover:bg-blue-700'
-              } text-white font-medium transition-colors`}
+                join.is_joined
+                  ? 'bg-gray-600 hover:bg-gray-700'
+                  : 'bg-gray-800 hover:bg-gray-900'
+              } text-white font-medium transition-colors ${join.user && onMessageCreator ? 'flex-1' : ''}`}
               disabled={join.is_joined}
             >
-              {join.is_joined ? 'Joined' : 'Join'}
+              {join.is_joined ? 'Joined' : 'Join Activity'}
             </Button>
           </div>
         </div>

@@ -9,46 +9,51 @@ from datetime import datetime, timedelta
 # Backend API URL
 API_BASE = "https://lifestring-api-6946562411.us-central1.run.app/api"
 
-# Sample joins data
+# Sample joins data - Interest-based groups with locations
 sample_joins = [
     {
-        "title": "Weekend Hiking Adventure - Mount Tamalpais",
-        "description": "Join us for a beautiful weekend hike up Mount Tamalpais! Great views of the Bay Area and perfect for intermediate hikers. We'll meet at the parking lot and take the scenic route to the summit.",
-        "type": "activity",
-        "location": "Mount Tamalpais State Park, CA",
-        "date": (datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d'),
-        "time": "08:00",
-        "duration": "4 hours",
-        "max_participants": 8,
-        "cost": "Free",
+        "title": "Bay Area Hiking Enthusiasts",
+        "description": "A community for hiking lovers in the San Francisco Bay Area. We organize regular hikes, share trail recommendations, and connect people who love exploring nature. All skill levels welcome!",
+        "type": "hiking",
+        "location": "San Francisco Bay Area, CA",
+        "group_type": "ongoing",
+        "max_participants": 50,
+        "current_participants": 23,
+        "difficulty": "all_levels",
+        "tags": ["hiking", "bay area", "nature", "trails", "outdoor", "community", "weekend"]
+    },
+    {
+        "title": "San Francisco Photography Group",
+        "description": "Connect with fellow photographers in San Francisco! Share techniques, explore the city together, and improve your skills. From beginners to professionals, everyone is welcome.",
+        "type": "photography",
+        "location": "San Francisco, CA",
+        "group_type": "ongoing",
+        "max_participants": 30,
+        "current_participants": 18,
+        "difficulty": "all_levels",
+        "tags": ["photography", "san francisco", "art", "creative", "urban", "landscape", "portrait"]
+    },
+    {
+        "title": "Oakland Rock Climbing Community",
+        "description": "Rock climbing group based in Oakland. We climb at local gyms, outdoor crags, and organize trips to Yosemite and Tahoe. Great for meeting climbing partners and improving skills.",
+        "type": "climbing",
+        "location": "Oakland, CA",
+        "group_type": "ongoing",
+        "max_participants": 25,
+        "current_participants": 12,
         "difficulty": "intermediate",
-        "tags": ["hiking", "mountain", "weekend", "bay area", "nature", "outdoors"]
+        "tags": ["climbing", "rock climbing", "oakland", "yosemite", "outdoor", "adventure", "fitness"]
     },
     {
-        "title": "Cooking Class: Italian Pasta Making",
-        "description": "Learn to make authentic Italian pasta from scratch! We'll cover different pasta shapes, sauces, and techniques. All ingredients provided. Perfect for food lovers!",
-        "type": "event",
-        "location": "Community Kitchen, San Francisco",
-        "date": (datetime.now() + timedelta(days=5)).strftime('%Y-%m-%d'),
-        "time": "18:00",
-        "duration": "3 hours",
-        "max_participants": 12,
-        "cost": "$45",
-        "difficulty": "beginner",
-        "tags": ["cooking", "italian", "pasta", "food", "learning", "hands-on"]
-    },
-    {
-        "title": "Photography Walk: Golden Gate Bridge",
-        "description": "Capture stunning photos of the Golden Gate Bridge from the best viewpoints! We'll explore different angles and lighting. Bring your camera or phone.",
-        "type": "activity",
-        "location": "Crissy Field, San Francisco",
-        "date": (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d'),
-        "time": "16:00",
-        "duration": "2 hours",
-        "max_participants": 15,
-        "cost": "Free",
-        "difficulty": "beginner",
-        "tags": ["photography", "golden gate", "bridge", "sunset", "walking", "sightseeing"]
+        "title": "Peninsula Boating & Sailing Club",
+        "description": "Sailing and boating enthusiasts on the Peninsula! We organize sailing trips, share boat maintenance tips, and welcome both experienced sailors and those wanting to learn.",
+        "type": "boating",
+        "location": "San Mateo County, CA",
+        "group_type": "ongoing",
+        "max_participants": 40,
+        "current_participants": 16,
+        "difficulty": "all_levels",
+        "tags": ["boating", "sailing", "peninsula", "water sports", "bay area", "ocean", "marina"]
     },
     {
         "title": "Beach Volleyball Tournament",

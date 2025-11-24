@@ -161,6 +161,123 @@ class ProfileService:
 
         return merged_profile
 
+    async def update_profile_field(self, user_id: str, field_name: str, value: Any, token: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Update a single field in the user's profile.
+
+        Args:
+            user_id: The user's ID
+            field_name: The field to update (e.g., 'location', 'bio')
+            value: The new value for the field
+            token: JWT token for authentication
+
+        Returns:
+            Success/error response
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                headers = {
+                    "apikey": self.supabase_anon_key,
+                    "Content-Type": "application/json"
+                }
+
+                if token:
+                    headers["Authorization"] = f"Bearer {token}"
+
+                # Update the detailed_profiles table
+                update_data = {field_name: value}
+
+                response = await client.patch(
+                    f"{self.supabase_url}/rest/v1/detailed_profiles?user_id=eq.{user_id}",
+                    headers=headers,
+                    json=update_data
+                )
+
+                if response.status_code == 200:
+                    return {
+                        "success": True,
+                        "message": f"Successfully updated {field_name}",
+                        "field": field_name,
+                        "value": value
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": f"Failed to update {field_name}: {response.text}"
+                    }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Error updating profile field: {str(e)}"
+            }
+
+    async def add_to_array_field(self, user_id: str, field_name: str, new_items: list, token: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Add items to an array field in the user's profile (hobbies, interests, skills).
+
+        Args:
+            user_id: The user's ID
+            field_name: The array field to update (e.g., 'hobbies', 'interests', 'skills')
+            new_items: List of items to add
+            token: JWT token for authentication
+
+        Returns:
+            Success/error response
+        """
+        try:
+            # First get current profile to see existing items
+            current_profile = await self.get_user_profile(user_id, token)
+            if not current_profile:
+                return {
+                    "success": False,
+                    "error": "Could not fetch current profile"
+                }
+
+            # Get existing items for this field
+            existing_items = current_profile.get(field_name, []) or []
+
+            # Add new items that aren't already present (case-insensitive)
+            existing_lower = [item.lower() for item in existing_items]
+            items_to_add = []
+
+            for item in new_items:
+                if item.lower() not in existing_lower:
+                    items_to_add.append(item)
+
+            if not items_to_add:
+                return {
+                    "success": True,
+                    "message": f"All {field_name} already exist in profile",
+                    "field": field_name,
+                    "existing_items": existing_items,
+                    "skipped_items": new_items
+                }
+
+            # Combine existing and new items
+            updated_items = existing_items + items_to_add
+
+            # Update the profile
+            update_result = await self.update_profile_field(user_id, field_name, updated_items, token)
+
+            if update_result.get("success"):
+                return {
+                    "success": True,
+                    "message": f"Successfully added {len(items_to_add)} new {field_name}",
+                    "field": field_name,
+                    "added_items": items_to_add,
+                    "existing_items": existing_items,
+                    "all_items": updated_items
+                }
+            else:
+                return update_result
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Error adding to {field_name}: {str(e)}"
+            }
+
 
 # Global instance
 profile_service = ProfileService()

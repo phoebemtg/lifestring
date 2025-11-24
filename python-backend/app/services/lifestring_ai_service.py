@@ -142,7 +142,7 @@ class LifestringAIService:
             Natural AI response
         """
         # Build basic system prompt for public use
-        system_prompt = self._build_public_system_prompt(context)
+        system_prompt = await self._build_public_system_prompt(context)
 
         # Build messages for OpenAI
         messages = [
@@ -230,7 +230,7 @@ class LifestringAIService:
             print(f"DEBUG: Final relevant_joins count: {len(relevant_joins)}")
 
         # Build enhanced system prompt WITH relevant joins
-        system_prompt = self._build_lifestring_system_prompt(user, context, db_session, relevant_joins)
+        system_prompt = await self._build_lifestring_system_prompt(user, context, db_session, relevant_joins)
 
         # Build messages for OpenAI
         messages = [{"role": "system", "content": system_prompt}]
@@ -363,20 +363,25 @@ class LifestringAIService:
             'urgency': 'high' if time_context == 'immediate' else 'medium' if time_context == 'soon' else 'low'
         }
 
-    def _build_public_system_prompt(self, context: Dict[str, Any] = None) -> str:
+    async def _build_public_system_prompt(self, context: Dict[str, Any] = None) -> str:
         """Build system prompt for natural chat experience."""
 
         # Get current time information
         from datetime import datetime
         import pytz
+        from app.services.realtime_service import realtime_service
 
-        # Get current time in multiple timezones
+        # Get current time (default timezone for public endpoint)
+        time_info = await realtime_service.get_current_time()
+
+        # Also get UTC and other major timezones for reference
         utc_now = datetime.now(pytz.UTC)
         pst_now = utc_now.astimezone(pytz.timezone('US/Pacific'))
         est_now = utc_now.astimezone(pytz.timezone('US/Eastern'))
 
         current_time_info = f"""
 CURRENT TIME INFORMATION:
+- Current Time: {time_info['current_time']} on {time_info['current_date']}
 - UTC: {utc_now.strftime('%Y-%m-%d %H:%M:%S %Z')}
 - Pacific Time: {pst_now.strftime('%Y-%m-%d %H:%M:%S %Z')}
 - Eastern Time: {est_now.strftime('%Y-%m-%d %H:%M:%S %Z')}
@@ -505,20 +510,30 @@ CURRENT TIME INFORMATION:
         import random
         return random.choice(default_responses)
 
-    def _build_lifestring_system_prompt(self, user: User, context: Dict[str, Any] = None, db_session = None, relevant_joins: List[Dict] = None) -> str:
+    async def _build_lifestring_system_prompt(self, user: User, context: Dict[str, Any] = None, db_session = None, relevant_joins: List[Dict] = None) -> str:
         """Build enhanced system prompt for Lifestring AI."""
 
         # Get current time information
         from datetime import datetime
         import pytz
+        from app.services.realtime_service import realtime_service
 
-        # Get current time in multiple timezones
+        # Get user's location for timezone detection
+        user_location = None
+        if user and hasattr(user, 'contact_info') and user.contact_info:
+            user_location = user.contact_info.get('location')
+
+        # Get current time in user's timezone
+        time_info = await realtime_service.get_current_time(user_location)
+
+        # Also get UTC and other major timezones for reference
         utc_now = datetime.now(pytz.UTC)
         pst_now = utc_now.astimezone(pytz.timezone('US/Pacific'))
         est_now = utc_now.astimezone(pytz.timezone('US/Eastern'))
 
         current_time_info = f"""
 CURRENT TIME INFORMATION:
+- Current Time: {time_info['current_time']} on {time_info['current_date']} ({time_info['timezone']})
 - UTC: {utc_now.strftime('%Y-%m-%d %H:%M:%S %Z')}
 - Pacific Time: {pst_now.strftime('%Y-%m-%d %H:%M:%S %Z')}
 - Eastern Time: {est_now.strftime('%Y-%m-%d %H:%M:%S %Z')}

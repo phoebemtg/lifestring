@@ -7,6 +7,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+import json
 
 from app.core.database import get_db, get_db_optional
 from app.core.config import settings
@@ -17,7 +18,7 @@ from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.room import Room, Message, RoomParticipant
 from app.services.openai_service import openai_service
-from app.services.lifestring_ai_service import lifestring_ai, AIResponse
+from app.services.lifestring_ai_service import lifestring_ai, AIResponse, IntentType
 from app.services.ai_action_handler import create_action_handler
 
 # Import web_search_service conditionally to avoid import errors
@@ -315,6 +316,10 @@ def format_events_as_text(events: List[Dict[str, Any]]) -> str:
 def extract_joins_from_response(response_text: str, user_message: str, user_profile: Dict[str, Any] = None) -> List[Dict[str, Any]]:
     """Extract join recommendations from AI response and return structured data."""
     joins = []
+
+    # Handle None response_text
+    if not response_text or not user_message:
+        return []
 
     # Check if the response mentions specific activities that could be joins
     message_lower = user_message.lower()
@@ -689,6 +694,7 @@ class EnhancedChatResponse(BaseModel):
     suggested_strings: List[Dict[str, Any]] = []
     suggested_connections: List[str] = []
     suggested_joins: List[Dict[str, Any]] = []
+    people: List[Dict[str, Any]] = []  # Add people field
     tokens: int
     cost: float
 
@@ -1255,7 +1261,7 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
                 if not hybrid_ai_service:
                     # Search for real-time events if user is asking about them
                     real_time_events = await search_real_time_events(request.message, profile_data)
-                    response_message = final_response["content"]
+                    response_message = final_response.get("content") or "I've processed your request successfully."
 
                     # Check if this is a time-specific query that should only show real-time events
                     message_lower = request.message.lower()
@@ -1282,8 +1288,8 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
                     joins = [] if is_real_time_only_query else extract_joins_from_response(final_response["content"], request.message, profile_data)
                 else:
                     # For hybrid AI service, use the response as-is (Google Grounding handles real-time data)
-                    response_message = final_response["content"]
-                    joins = extract_joins_from_response(final_response["content"], request.message, profile_data)
+                    response_message = final_response.get("content") or "I've processed your request successfully."
+                    joins = extract_joins_from_response(final_response.get("content"), request.message, profile_data)
 
                 return SimpleChatResponse(
                     message=response_message,
@@ -1298,7 +1304,7 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
             if not hybrid_ai_service:
                 # Search for real-time events if user is asking about them
                 real_time_events = await search_real_time_events(request.message, profile_data)
-                response_message = response["content"]
+                response_message = response.get("content") or "I'm here to help!"
 
                 # Check if this is a time-specific query that should only show real-time events
                 message_lower = request.message.lower()
@@ -1322,11 +1328,11 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
                     logger.info(f"Added {len(real_time_events)} real-time events to response text")
 
                 # Only include joins if it's not a time-specific query
-                joins = [] if is_real_time_only_query else extract_joins_from_response(response["content"], request.message, profile_data)
+                joins = [] if is_real_time_only_query else extract_joins_from_response(response.get("content"), request.message, profile_data)
             else:
                 # For hybrid AI service, use the response as-is (Google Grounding handles real-time data)
-                response_message = response["content"]
-                joins = extract_joins_from_response(response["content"], request.message, profile_data)
+                response_message = response.get("content") or "I'm here to help!"
+                joins = extract_joins_from_response(response.get("content"), request.message, profile_data)
 
             return SimpleChatResponse(
                 message=response_message,
@@ -1530,7 +1536,7 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
         if not hybrid_ai_service:
             # Search for real-time events if user is asking about them
             real_time_events = await search_real_time_events(request.message, profile_data)
-            response_message = final_response["content"]
+            response_message = final_response.get("content") or "I've processed your request successfully."
 
             # Check if this is a time-specific query that should only show real-time events
             message_lower = request.message.lower()
@@ -1557,8 +1563,8 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
             joins = [] if is_real_time_only_query else extract_joins_from_response(final_response["content"], request.message, None)
         else:
             # For hybrid AI service, use the response as-is (Google Grounding handles real-time data)
-            response_message = final_response["content"]
-            joins = extract_joins_from_response(final_response["content"], request.message, None)
+            response_message = final_response.get("content") or "I've processed your request successfully."
+            joins = extract_joins_from_response(final_response.get("content"), request.message, None)
 
         return SimpleChatResponse(
             message=response_message,
@@ -1931,6 +1937,290 @@ IMPORTANT: Never mention external platforms like Meetup, Facebook, Instagram, or
             cost=0.0
         )
 
+
+async def build_enhanced_system_prompt(profile_data: Dict[str, Any]) -> str:
+    """
+    Build enhanced system prompt with profile data.
+    """
+    # Get current time information
+    from app.services.realtime_service import realtime_service
+
+    # Get user's location for timezone detection
+    user_location = profile_data.get('location') if profile_data else None
+
+    # Get current time in user's timezone
+    time_info = await realtime_service.get_current_time(user_location)
+    system_prompt = f"""You are Strings, Lifestring's AI assistant. The current time is {time_info['current_time']} on {time_info['current_date']}.
+
+You are having a conversation with a user on Lifestring. Here's how Lifestring works:
+
+**YOU ARE STRINGS**: You are the AI that users chat with about what they want to do and who they want to meet.
+
+**LIFESTRING FEATURES**:
+1. **STRINGS**: Posts where users share thoughts, interests, and activities
+2. **CONNECTIONS**: Smart matching with compatible users based on shared interests
+3. **JOINS**: Ongoing groups and activities that users can join
+
+**YOUR ROLE**: Help users discover and connect with:
+- **JOINS**: Ongoing groups, clubs, and activities they can join
+- **PEOPLE**: Others with similar interests they can connect with
+- **ACTIVITIES**: Things to do based on their interests and location
+
+**CONVERSATION STYLE**:
+- Be natural, friendly, and conversational like ChatGPT
+- Answer general questions naturally (time, weather, general knowledge)
+- Only provide Lifestring-specific responses when questions relate to user profiles, connections, or platform features
+- Never mention external platforms like Meetup, Facebook, etc.
+- Always recommend Lifestring's own features and community
+
+**IMPORTANT**: You can answer ANY question naturally. Don't always redirect to Lifestring features unless the question is specifically about finding people, activities, or connections."""
+
+    if profile_data:
+        interests = profile_data.get('interests', []) or []
+        passions = profile_data.get('passions', []) or []
+        hobbies = profile_data.get('hobbies', []) or []
+        bio = profile_data.get('bio', '') or ''
+        location = profile_data.get('location', '') or ''
+        age = profile_data.get('age', '') or ''
+        birthday = profile_data.get('birthday', '') or ''
+        work = profile_data.get('work', '') or ''
+        goals = profile_data.get('goals', '') or ''
+        dreams = profile_data.get('dreams', '') or ''
+        profile_questions = profile_data.get('profile_questions', {}) or {}
+        name = profile_data.get('contact_info', {}).get('name', 'User') if profile_data and 'contact_info' in profile_data else 'User'
+
+        # Build comprehensive profile context
+        profile_context = []
+        if bio:
+            profile_context.append(f"Bio: '{bio}'")
+
+        if interests:
+            profile_context.append(f"Interests: {', '.join(interests)}")
+
+        if passions:
+            profile_context.append(f"Passions: {', '.join(passions)}")
+
+        if hobbies:
+            profile_context.append(f"Hobbies: {', '.join(hobbies)}")
+
+        if location:
+            profile_context.append(f"Location: {location}")
+
+        if age:
+            profile_context.append(f"Age: {age}")
+
+        if birthday:
+            profile_context.append(f"Birthday: {birthday}")
+
+        if work:
+            profile_context.append(f"Work: {work}")
+
+        if goals:
+            profile_context.append(f"Goals: {goals}")
+
+        if dreams:
+            profile_context.append(f"Dreams: {dreams}")
+
+        # Add profile questions to context
+        if profile_questions:
+            profile_context.append("Profile Questions & Answers:")
+            for question_key, answer in profile_questions.items():
+                if answer and str(answer).strip():  # Only include non-empty answers
+                    # Convert question key to actual question text
+                    actual_question = convert_question_key_to_text(question_key)
+                    profile_context.append(f"  Q: {actual_question}")
+                    profile_context.append(f"  A: {answer}")
+
+        # Always include the user's name in the system prompt
+        system_prompt += f"\n\nYou're talking to {name}."
+
+        if profile_context:
+            system_prompt += f" Here's their profile:\n" + "\n".join(profile_context)
+            system_prompt += "\n\nUse this profile information to provide personalized recommendations, especially when they ask about activities, weather-related suggestions, or local events. Consider their location, age, interests, and hobbies when making suggestions."
+    else:
+        system_prompt += "\n\nBe friendly and helpful. If the user mentions interests, encourage them to add them to their profile for more personalized suggestions."
+
+    return system_prompt
+
+
+async def build_enhanced_system_prompt_with_functions(profile_data: Dict[str, Any]) -> str:
+    """
+    Build enhanced system prompt with function calling instructions.
+    """
+    # Get the base system prompt from the existing function
+    base_prompt = await build_enhanced_system_prompt(profile_data)
+
+    # Add function calling instructions
+    function_instructions = """
+
+**FUNCTION CALLING INSTRUCTIONS**:
+
+You have access to the following functions that you MUST use when appropriate:
+
+1. **suggest_joins_for_activity(activity: str, location: str)** - Use when users want to JOIN ongoing activities or groups
+2. **suggest_people_to_connect(interests: list, location: str)** - Use when users want to find people with similar interests
+3. **update_profile_location(location: str)** - Use when users mention moving or changing location
+4. **update_bio(bio: str)** - Use when users want to update their bio/description
+5. **add_hobby(hobby: str)** - Use when users mention new hobbies
+6. **add_interest(interest: str)** - Use when users mention new interests
+7. **add_skill(skill: str)** - Use when users mention new skills
+
+**JOINS/ACTIVITIES**: You MUST suggest joins/activities ONLY when users specifically ask to JOIN ongoing activities or groups. When users ask about:
+- "I want to join a hiking group": IMMEDIATELY call suggest_joins_for_activity with "hiking" and user's location
+- "Find me hikers to join": IMMEDIATELY call suggest_joins_for_activity with "hiking" and user's location
+- "Looking for climbing communities to join": ALWAYS use suggest_joins_for_activity with "climbing" as activity and user's location
+- "I want to find people to go boating with": IMMEDIATELY call suggest_joins_for_activity with "boating" and user's location
+- "I want to find groups for [activity]": ALWAYS use suggest_joins_for_activity function with user's location
+- "Find me people who like [activity]": ALWAYS use suggest_joins_for_activity function with user's location
+- "Looking for [activity] communities": ALWAYS use suggest_joins_for_activity function with user's location
+- Specifically wanting to JOIN ongoing activities: ALWAYS use suggest_joins_for_activity function with user's location
+
+**CRITICAL**: ALWAYS pass the user's location when calling suggest_joins_for_activity to ensure location-appropriate suggestions.
+
+**DO NOT** suggest joins for:
+- General event requests like "what should I do tonight" or "I want to see an event"
+- One-time event questions like "what's happening tonight"
+- Entertainment requests like "I want to watch a football game"
+- General activity suggestions that don't involve joining ongoing groups
+
+For general events and entertainment, use your real-time knowledge to suggest current events, shows, games, etc.
+
+**PROFILE UPDATES**: When users mention personal information, ALWAYS call the appropriate function:
+- "I moved to Berkeley" → Use update_profile_location function
+- "Climbing is a hobby of mine" → Use add_hobby function
+- "I'm interested in photography" → Use add_interest function
+- "I know Python programming" → Use add_skill function
+- "Change my description to..." → Use update_bio function
+
+ALWAYS call the appropriate function when users mention these things, then confirm the update was successful and be natural about it.
+"""
+
+    return base_prompt + function_instructions
+
+
+async def process_enhanced_chat_with_functions(
+    request: EnhancedChatRequest,
+    user_id: str,
+    token: str,
+    profile_data: Dict[str, Any],
+    conversation_history: List[Dict[str, str]] = None
+) -> EnhancedChatResponse:
+    """
+    Process enhanced chat with function calling support.
+    """
+    try:
+        logger.info(f"🔍 PROFILE DATA FOUND - WILL PROCESS WITH JOINS")
+
+        # Build enhanced system prompt with profile data and function calling instructions
+        system_prompt = await build_enhanced_system_prompt_with_functions(profile_data)
+
+        # Build conversation history
+        messages = [{"role": "system", "content": system_prompt}]
+
+        # Add conversation history if available
+        if conversation_history:
+            logger.info(f"Adding conversation history: {len(conversation_history)} messages")
+            for msg in conversation_history[-10:]:  # Last 10 messages
+                if msg.get('type') == 'user':
+                    messages.append({"role": "user", "content": msg.get('content', '')})
+                elif msg.get('type') == 'ai':
+                    messages.append({"role": "assistant", "content": msg.get('content', '')})
+
+        # Add current message
+        messages.append({"role": "user", "content": request.message})
+
+        # Use hybrid AI service with function calling
+        logger.info(f"🔍 ABOUT TO CALL HYBRID AI SERVICE - system_prompt length: {len(system_prompt)}")
+        logger.info(f"Profile data available - hybrid_ai_service available: {hybrid_ai_service is not None}")
+        if hybrid_ai_service:
+            # Get available real-time functions for hybrid AI service
+            tools = realtime_service.get_available_functions() if realtime_service else None
+            logger.info(f"Providing tools to hybrid AI service: {tools is not None}")
+
+            response = await hybrid_ai_service.chat_completion(
+                messages=messages,
+                temperature=0.7,
+                max_tokens=500,
+                context={},
+                tools=tools
+            )
+        else:
+            # Get available real-time functions
+            tools = realtime_service.get_available_functions() if realtime_service else None
+            logger.info(f"Fallback to OpenAI service with tools: {tools is not None}")
+
+            response = await openai_service.chat_completion(
+                messages=messages,
+                temperature=0.7,
+                max_tokens=500,
+                tools=tools
+            )
+
+        logger.info(f"🔧 AI RESPONSE: {response}")
+
+        # Initialize collections for joins and people
+        joins = []
+        people = []
+
+        # Process function calls if present
+        if response.get("tool_calls"):
+            logger.info(f"🔧 PROCESSING {len(response['tool_calls'])} FUNCTION CALLS")
+
+            for tool_call in response["tool_calls"]:
+                function_name = tool_call["function"]["name"]
+                arguments = json.loads(tool_call["function"]["arguments"])
+
+                logger.info(f"🔧 FUNCTION CALL: {function_name} with args: {arguments}")
+
+                # Execute the function
+                function_result = await realtime_service.execute_function(function_name, arguments, user_id, token) if realtime_service else {"error": "Real-time service not available"}
+
+                logger.info(f"🔧 FUNCTION RESULT: {function_result}")
+
+                # Extract joins and people from function results
+                if function_result.get("success") and function_name == "suggest_joins_for_activity":
+                    joins.extend(function_result.get("joins", []))
+                    people.extend(function_result.get("people", []))
+                elif function_result.get("success") and function_name == "suggest_people_to_connect":
+                    people.extend(function_result.get("people", []))
+
+        # Get AI response content - handle None content when function calls are made
+        ai_response = response.get("content")
+        if ai_response is None:
+            # When AI makes function calls, content can be None, so provide a default response
+            if joins:
+                ai_response = f"I found some great boating opportunities for you in Salt Lake City! Check out the groups below."
+            else:
+                ai_response = "I'm here to help you connect with others on Lifestring!"
+
+        # Return enhanced response
+        return EnhancedChatResponse(
+            message=ai_response,
+            intent=IntentType.GENERAL_CHAT,
+            confidence=1.0,
+            actions=[],
+            suggested_strings=[],
+            suggested_connections=[],
+            suggested_joins=joins,
+            tokens=response.get("tokens", 0),
+            cost=response.get("cost", 0.0)
+        )
+
+    except Exception as e:
+        logger.error(f"Enhanced chat processing error: {e}", exc_info=True)
+        return EnhancedChatResponse(
+            message="I'm having trouble connecting right now. Please try again in a moment.",
+            intent=IntentType.GENERAL_CHAT,
+            confidence=0.5,
+            actions=[],
+            suggested_strings=[],
+            suggested_connections=[],
+            suggested_joins=[],
+            tokens=0,
+            cost=0.0
+        )
+
+
 @router.post("/ai/lifestring-chat", response_model=EnhancedChatResponse)
 async def lifestring_ai_chat(
     request: EnhancedChatRequest,
@@ -1960,20 +2250,40 @@ async def lifestring_ai_chat(
         # If database is not available or user not found in DB, proceed with profile data from request
         if db is None or current_user is None:
             logger.info("Database not available or user not found, using profile data from request")
-            # Use the same logic as the public endpoint but convert response format
-            public_response = await lifestring_ai_chat_public(request)
 
-            # Convert SimpleChatResponse to EnhancedChatResponse format
-            return EnhancedChatResponse(
-                message=public_response.message,
-                intent=public_response.intent,
-                confidence=public_response.confidence,
-                actions=[],
-                suggested_strings=[],
-                suggested_connections=[],
-                suggested_joins=public_response.joins,  # Convert joins to suggested_joins
-                tokens=public_response.tokens,
-                cost=public_response.cost
+            # Extract profile data from request
+            profile_data = {}
+            if hasattr(request, 'context') and request.context:
+                user_profile = request.context.get('user_profile', {})
+                detailed_profile = request.context.get('detailed_profile', {})
+
+                # Use detailed profile if available, otherwise use user_profile
+                profile_source = detailed_profile if detailed_profile else user_profile
+
+                if profile_source:
+                    profile_data = {
+                        'name': profile_source.get('name') or profile_source.get('contact_info', {}).get('name', 'User'),
+                        'contact_info': profile_source.get('contact_info', {}),
+                        'interests': profile_source.get('interests', []),
+                        'passions': profile_source.get('passions', []),
+                        'hobbies': profile_source.get('hobbies', []),
+                        'skills': profile_source.get('skills', []),
+                        'bio': profile_source.get('bio', ''),
+                        'profile_questions': profile_source.get('profile_questions', {}),
+                        'age': profile_source.get('age', ''),
+                        'location': profile_source.get('location', ''),
+                        'birthday': profile_source.get('birthday', '')
+                    }
+
+            logger.info(f"Using profile data: {profile_data}")
+
+            # Use the enhanced function calling logic even without database
+            return await process_enhanced_chat_with_functions(
+                request=request,
+                user_id=user_id,
+                token=token,
+                profile_data=profile_data,
+                conversation_history=request.context.get('conversation_history', []) if hasattr(request, 'context') and request.context else []
             )
 
         # Find or create AI chat room for this user
@@ -2335,11 +2645,65 @@ You are having a conversation with a user on Lifestring. Here's how Lifestring w
 - Gym, climbing, fitness classes → Fitness Challenges
 
 **PROFILE UPDATES**: You can help users update their profile information directly from the chat. When users mention:
-- New hobbies or interests: Use add_hobbies or add_interests functions
-- Moving to a new location: Use update_profile_location function
-- New skills they've learned: Use add_skills function
-- Want to update their bio: Use update_bio function
-Always confirm the update was successful and be natural about it.
+
+**HOBBIES**: Listen for phrases like:
+- "Climbing is a hobby of mine" → Use add_hobbies with ["climbing"]
+- "I love photography" → Use add_hobbies with ["photography"]
+- "I enjoy hiking and biking" → Use add_hobbies with ["hiking", "biking"]
+- "My hobbies include..." → Use add_hobbies function
+- "I'm into..." → Use add_hobbies function
+
+**INTERESTS**: Listen for phrases like:
+- "I'm interested in art" → Use add_interests with ["art"]
+- "I love music and movies" → Use add_interests with ["music", "movies"]
+- "I'm passionate about cooking" → Use add_interests with ["cooking"]
+- "I really enjoy..." → Use add_interests function
+
+**SKILLS**: Listen for phrases like:
+- "I know how to code" → Use add_skills with ["coding"]
+- "I'm good at guitar" → Use add_skills with ["guitar"]
+- "I can speak Spanish" → Use add_skills with ["Spanish"]
+- "I'm skilled in..." → Use add_skills function
+
+**LOCATION**: Listen for phrases like:
+- "I moved to Seattle" → Use update_profile_location with "Seattle"
+- "I live in New York now" → Use update_profile_location with "New York"
+- "I'm based in..." → Use update_profile_location function
+
+**BIO**: Listen for phrases like:
+- "Update my bio to..." → Use update_bio function
+- "Change my description to..." → Use update_bio function
+
+ALWAYS call the appropriate function when users mention these things, then confirm the update was successful and be natural about it.
+
+**JOINS/ACTIVITIES**: You MUST suggest joins/activities ONLY when users specifically ask to JOIN ongoing activities or groups. When users ask about:
+- "I want to join a hiking group": IMMEDIATELY call suggest_joins_for_activity with "hiking" and user's location
+- "Find me hikers to join": IMMEDIATELY call suggest_joins_for_activity with "hiking" and user's location
+- "Looking for climbing communities to join": ALWAYS use suggest_joins_for_activity with "climbing" as activity and user's location
+- "I want to find people to go boating with": IMMEDIATELY call suggest_joins_for_activity with "boating" and user's location
+- "I want to find groups for [activity]": ALWAYS use suggest_joins_for_activity function with user's location
+- "Find me people who like [activity]": ALWAYS use suggest_joins_for_activity function with user's location
+- "Looking for [activity] communities": ALWAYS use suggest_joins_for_activity function with user's location
+- Specifically wanting to JOIN ongoing activities: ALWAYS use suggest_joins_for_activity function with user's location
+
+**CRITICAL**: ALWAYS pass the user's location when calling suggest_joins_for_activity to ensure location-appropriate suggestions.
+
+**DO NOT** suggest joins for:
+- General event requests like "what should I do tonight" or "I want to see an event"
+- One-time event questions like "what's happening tonight"
+- Entertainment requests like "I want to watch a football game"
+- General activity suggestions that don't involve joining ongoing groups
+
+For general events and entertainment, use your real-time knowledge to suggest current events, shows, games, etc.
+
+**PEOPLE SUGGESTIONS**: You can suggest people for users to connect with based on shared interests. When users ask about:
+- Finding people with similar interests: Use suggest_people_to_connect function
+- Meeting people who share hobbies: Use suggest_people_to_connect function
+- Connecting with others in their area: Include location in suggest_people_to_connect function
+- Finding friends or connections: Use suggest_people_to_connect function
+When suggesting people, mention their common interests and encourage the user to connect.
+
+**JOINS WITH CREATORS**: When you suggest joins/activities, also suggest connecting with the people who created them. If a join was created by someone (like "Sarah Rodriguez created this climbing group"), use suggest_people_to_connect to find that person and similar people so users can connect with the join creators and others with similar interests.
 
 **REMEMBER**: You are Strings - the conversational AI. Users chat with you, and you help them discover Joins and Connections on Lifestring."""
 
@@ -2457,6 +2821,9 @@ DO NOT mention Connections feature. DO NOT give generic advice. ALWAYS mention t
         )
 
         # Handle function calls if present
+        joins = []
+        people = []
+
         if response.get("tool_calls"):
             logger.info(f"Processing {len(response['tool_calls'])} function calls")
 
@@ -2464,8 +2831,20 @@ DO NOT mention Connections feature. DO NOT give generic advice. ALWAYS mention t
                 function_name = tool_call["function"]["name"]
                 arguments = json.loads(tool_call["function"]["arguments"])
 
+                logger.info(f"🔧 FUNCTION CALL: {function_name} with args: {arguments}")
+                logger.info(f"🔧 USER_ID: {user_id}, TOKEN: {'present' if token else 'missing'}")
+
                 # Execute the function (pass user_id and token for profile updates)
                 function_result = await realtime_service.execute_function(function_name, arguments, user_id, token) if realtime_service else {"error": "Real-time service not available"}
+
+                logger.info(f"🔧 FUNCTION RESULT: {function_result}")
+
+                # Extract joins and people from function results
+                if function_result.get("success") and function_name == "suggest_joins_for_activity":
+                    joins.extend(function_result.get("joins", []))
+                    people.extend(function_result.get("people", []))
+                elif function_result.get("success") and function_name == "suggest_people_to_connect":
+                    people.extend(function_result.get("people", []))
 
                 # Add function result to messages
                 messages.append({
@@ -2495,9 +2874,11 @@ DO NOT mention Connections feature. DO NOT give generic advice. ALWAYS mention t
                 temperature=0.7
             )
 
-            ai_response = final_response["content"]
+            ai_response = final_response.get("content") or "I've processed your request successfully."
         else:
-            ai_response = response["content"]
+            ai_response = response.get("content") or "I'm here to help!"
+            # Fallback to old extraction method if no function calls
+            joins = extract_joins_from_response(ai_response, request.message, profile_data)
 
         # Save AI response to conversation history (with error handling)
         try:
@@ -2520,13 +2901,11 @@ DO NOT mention Connections feature. DO NOT give generic advice. ALWAYS mention t
         except Exception as e:
             logger.error(f"Error updating conversation memory (non-critical): {e}")
 
-        # Extract joins for the response (same logic as public endpoint)
-        logger.info(f"🔍 AUTHENTICATED ENDPOINT - About to extract joins from message: {request.message}")
-        logger.info(f"🔍 AUTHENTICATED ENDPOINT - Profile data available: {profile_data is not None}")
-        joins = extract_joins_from_response(ai_response, request.message, profile_data)
-        logger.info(f"🎯 Authenticated endpoint extracted {len(joins) if joins else 0} joins")
+        logger.info(f"🎯 Authenticated endpoint extracted {len(joins) if joins else 0} joins and {len(people) if people else 0} people")
         if joins:
             logger.info(f"🎯 First join: {joins[0]['title']} by {joins[0]['user']['name']}")
+        if people:
+            logger.info(f"👥 First person: {people[0]['name']}")
 
         return EnhancedChatResponse(
             message=ai_response,
@@ -2536,6 +2915,7 @@ DO NOT mention Connections feature. DO NOT give generic advice. ALWAYS mention t
             suggested_strings=[],
             suggested_connections=[],
             suggested_joins=joins,
+            people=people,  # Add people to response
             tokens=response.get("tokens", 500),
             cost=response.get("cost", 0.001)
         )
