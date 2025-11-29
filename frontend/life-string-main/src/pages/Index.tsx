@@ -4,13 +4,16 @@ import CommonRoom from "../components/CommonRoom";
 import AuthPage from "../components/AuthPage";
 import SignIn from "../components/SignIn";
 import ViewProfile from "../components/ViewProfile";
+import MobileComingSoon from "../components/MobileComingSoon";
 import { useAuth } from "../hooks/useAuth";
+import { useMobileDetection } from "../hooks/useMobileDetection";
 import lifestringLogo from '@/assets/lifestring-header-logo.png';
 
 // Removed Community interface and franklinCommunity object - no longer needed
 
 function AppContent() {
   const { user, userProfile, loading } = useAuth();
+  const isMobile = useMobileDetection();
   const [currentView, setCurrentView] = useState<'loading' | 'landing' | 'auth' | 'signin' | 'commonroom' | 'viewprofile'>('loading');
   const [userName, setUserName] = useState('');
   const [selectedUser, setSelectedUser] = useState<any>(null);
@@ -134,6 +137,11 @@ function AppContent() {
         </div>
       </div>
     );
+  }
+
+  // Show mobile coming soon page for mobile users
+  if (isMobile) {
+    return <MobileComingSoon />;
   }
 
   switch (currentView) {

@@ -86,34 +86,7 @@ const SignIn = ({
       setLoading(false);
     }
   };
-  return <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6 relative">
-      {/* Cloud Background */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-        <svg
-          width="500"
-          height="650"
-          viewBox="0 0 500 650"
-          className="absolute"
-          style={{ transform: 'translate(-10px, -20px)' }}
-        >
-          <path
-            d="M100 200
-               C80 150, 120 120, 170 130
-               C200 100, 250 110, 270 140
-               C320 120, 370 130, 390 160
-               C420 150, 460 170, 470 200
-               L470 450
-               C470 480, 450 500, 420 500
-               L150 500
-               C120 500, 100 480, 100 450
-               L100 200 Z"
-            fill="none"
-            stroke="#93c5fd"
-            strokeWidth="3"
-            opacity="0.8"
-          />
-        </svg>
-      </div>
+  return <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
       
       <Card className="w-full max-w-md bg-white shadow-sm border border-gray-200 relative z-10">
         <CardHeader className="text-center pb-8 relative">

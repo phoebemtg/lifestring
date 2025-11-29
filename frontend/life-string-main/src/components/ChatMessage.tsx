@@ -83,12 +83,12 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   onViewProfile,
   onMessageCreator
 }) => {
-  // Debug logging
-  console.log('🎭 ChatMessage received people:', people);
-
-  // Debug logging for joins
+  // Debug logging (reduced)
+  if (people && people.length > 0) {
+    console.log('ChatMessage received people:', people.length);
+  }
   if (type === 'ai' && joins && joins.length > 0) {
-    console.log('🎯 ChatMessage received joins:', joins);
+    console.log('ChatMessage received joins:', joins.length);
   }
   // Function to parse markdown links and convert them to clickable links
   const parseMarkdownLinks = (text: string) => {

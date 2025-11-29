@@ -153,18 +153,9 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
             .eq('user_id', user.id)
             .single();
 
-          console.log('📋 Raw user_profiles data:', userProfileData);
-          console.log('❌ User profile error:', userProfileError);
-
-          // Debug: Log the full structure of userProfileData
-          if (userProfileData) {
-            console.log('🔍 DEBUGGING userProfileData structure:');
-            console.log('- Full object:', userProfileData);
-            console.log('- Object keys:', Object.keys(userProfileData));
-            console.log('- attributes:', (userProfileData as any).attributes);
-            console.log('- biography:', (userProfileData as any).biography);
-            console.log('- contact_info:', (userProfileData as any).contact_info);
-            console.log('- social_links:', (userProfileData as any).social_links);
+          // Debug: Check for errors only
+          if (userProfileError) {
+            console.error('User profile error:', userProfileError);
           }
 
           // Try multiple sources for the name
@@ -681,16 +672,10 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
               birthday: detailedProfile?.birthday || userProfile?.birthday || null
             };
 
-            console.log('🔍 DEBUG: Profile data being sent to backend:', {
-              ...profileData,
-              profile_questions_count: Object.keys(profileData.profile_questions || {}).length,
-              profile_questions_actual: profileData.profile_questions
-            });
-
-            console.log('🔍 PROFILE QUESTIONS FINAL CHECK:', profileData.profile_questions);
+            // Profile data ready for backend
 
             // Call authenticated endpoint directly with proper headers
-            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001';
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
             const response = await fetch(`${backendUrl}/api/ai/lifestring-chat`, {
               method: 'POST',
               headers: {
@@ -792,15 +777,15 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
           contact_info: {
             name: userName || 'User'
           },
-          interests: userProfile?.interests || ['hiking', 'boating', 'climbing'],
-          passions: userProfile?.passions || ['hiking', 'boating', 'climbing'],
-          hobbies: userProfile?.hobbies || ['hiking', 'boating', 'climbing'],
+          interests: userProfile?.interests || ['tech', 'technology', 'programming'],
+          passions: userProfile?.passions || ['tech', 'technology', 'programming'],
+          hobbies: userProfile?.hobbies || ['tech', 'technology', 'programming'],
           skills: userProfile?.skills || [],
-          bio: userProfile?.bio || 'I enjoy outdoor activities and connecting with like-minded people.',
+          bio: userProfile?.bio || 'I enjoy tech and connecting with like-minded people.',
           profile_questions: userProfile?.profile_questions || {},
           // Add age, location, and birthday for AI context
           age: detailedProfile?.age || userProfile?.age || null,
-          location: detailedProfile?.location || userProfile?.location || null,
+          location: detailedProfile?.location || userProfile?.location || 'Salt Lake City, UT',
           birthday: detailedProfile?.birthday || userProfile?.birthday || null
         };
 
@@ -816,7 +801,7 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
         console.log('🎯 userProfile?.name value:', userProfile?.name);
         console.log('🎯 FINAL PROFILE DATA NAME:', profileData.name);
         console.log('🎯 FINAL PROFILE DATA CONTACT_INFO.NAME:', profileData.contact_info.name);
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001';
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
         console.log('🚀 GPT-5 Backend URL:', backendUrl);
 
         console.log('🚨 FALLBACK API CALL - CONVERSATION HISTORY:', chatMessages.slice(-5));
@@ -845,23 +830,40 @@ const StringsInterface: React.FC<StringsInterfaceProps> = ({
                                      userMessage.toLowerCase().includes('hiking') ||
                                      userMessage.toLowerCase().includes('cooking') ||
                                      userMessage.toLowerCase().includes('volleyball') ||
-                                     userMessage.toLowerCase().includes('photography'))) {
+                                     userMessage.toLowerCase().includes('photography') ||
+                                     userMessage.toLowerCase().includes('tech') ||
+                                     userMessage.toLowerCase().includes('technology') ||
+                                     userMessage.toLowerCase().includes('business') ||
+                                     userMessage.toLowerCase().includes('aviation') ||
+                                     userMessage.toLowerCase().includes('travel'))) {
             joins = [{
               id: 'mock_join_001',
               title: userMessage.toLowerCase().includes('climbing') ? 'Weekend Rock Climbing Adventure' :
                      userMessage.toLowerCase().includes('hiking') ? 'Mount Tamalpais Hiking Group' :
                      userMessage.toLowerCase().includes('cooking') ? 'Italian Cooking Workshop' :
                      userMessage.toLowerCase().includes('volleyball') ? 'Beach Volleyball Meetup' :
+                     (userMessage.toLowerCase().includes('tech') || userMessage.toLowerCase().includes('technology')) ? 'Silicon Valley Tech Professionals' :
+                     userMessage.toLowerCase().includes('business') ? 'SF Business Network & Entrepreneurs' :
+                     userMessage.toLowerCase().includes('aviation') ? 'Bay Area Aviation Enthusiasts' :
+                     userMessage.toLowerCase().includes('travel') ? 'California Travel Adventurers' :
                      'Photography Walk in Golden Gate Park',
               description: userMessage.toLowerCase().includes('climbing') ? 'Join us for an exciting rock climbing session at the local climbing gym. Perfect for beginners and intermediate climbers!' :
                           userMessage.toLowerCase().includes('hiking') ? 'Explore the beautiful trails of Mount Tamalpais with fellow hiking enthusiasts.' :
                           userMessage.toLowerCase().includes('cooking') ? 'Learn to make authentic Italian pasta and sauces from scratch.' :
                           userMessage.toLowerCase().includes('volleyball') ? 'Fun beach volleyball games every Saturday morning.' :
+                          (userMessage.toLowerCase().includes('tech') || userMessage.toLowerCase().includes('technology')) ? 'Connect with fellow tech professionals in Silicon Valley and beyond. Share insights about the latest technologies, discuss career opportunities, and network with like-minded individuals.' :
+                          userMessage.toLowerCase().includes('business') ? 'Network with entrepreneurs and business professionals in San Francisco. Share ideas, collaborate on projects, and grow your professional network.' :
+                          userMessage.toLowerCase().includes('aviation') ? 'A community for aviation lovers in the San Francisco Bay Area. Whether you\'re a pilot, aviation student, or just fascinated by aircraft, join us to share experiences.' :
+                          userMessage.toLowerCase().includes('travel') ? 'Connect with fellow travel enthusiasts and adventure seekers in California. Share travel tips, plan group trips, and discover new destinations together.' :
                           'Capture the beauty of Golden Gate Park with fellow photography enthusiasts.',
               location: userMessage.toLowerCase().includes('climbing') ? 'Mission Cliffs, San Francisco' :
                        userMessage.toLowerCase().includes('hiking') ? 'Mount Tamalpais State Park' :
                        userMessage.toLowerCase().includes('cooking') ? 'Community Kitchen, Mission District' :
                        userMessage.toLowerCase().includes('volleyball') ? 'Ocean Beach, San Francisco' :
+                       (userMessage.toLowerCase().includes('tech') || userMessage.toLowerCase().includes('technology')) ? 'Silicon Valley, CA' :
+                       userMessage.toLowerCase().includes('business') ? 'San Francisco, CA' :
+                       userMessage.toLowerCase().includes('aviation') ? 'San Francisco Bay Area, CA' :
+                       userMessage.toLowerCase().includes('travel') ? 'California' :
                        'Golden Gate Park, San Francisco',
               max_participants: 12,
               current_participants: 4,
